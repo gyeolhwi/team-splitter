@@ -1,4 +1,4 @@
-# Random Team Generator
+# Team Splitter
 
 음성채널에 모인 인원을 랜덤으로 팀으로 나누고, 팀별 음성채널로 분배한 뒤, 끝나면 다시 한곳으로 모아주는 디스코드 봇입니다.
 
