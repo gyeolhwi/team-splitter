@@ -23,12 +23,13 @@
 
 ## 기술 스택
 
-TypeScript · Node.js · discord.js v14
+TypeScript · Vercel Functions · Supabase (무료 플랜으로 운영)
 
 ## 문서
 
 | 문서 | 내용 |
 |---|---|
 | [docs/spec.md](docs/spec.md) | 목적, 명령어, 편성 규칙, 동작, 안전장치 |
-| [docs/tech.md](docs/tech.md) | 기술 구성, 봇 권한, 저장 방식, 폴더 구조 |
+| [docs/tech.md](docs/tech.md) | 기술 구성, 동작 방식, 봇 권한, 저장, 폴더 구조 |
+| [docs/setup.md](docs/setup.md) | 봇 등록, 디스코드·Vercel·Supabase 설정, 트러블슈팅 |
 | [INDEX.md](INDEX.md) | 문서 색인 (AI 참조용) |
