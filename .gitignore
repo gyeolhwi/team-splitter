@@ -2,6 +2,7 @@
 node_modules/
 dist/
 .env
+.env*.local
 data/
 .omc/
 RESEARCH_AND_SPEC.md
