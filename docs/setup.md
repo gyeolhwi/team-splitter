@@ -2,10 +2,10 @@
 id: setup
 title: 봇 등록·배포 가이드
 category: ops
-summary: 디스코드 Developer Portal에서 앱·봇 등록, Installation 설정, Supabase·Vercel 설정, Interactions Endpoint URL 등록, 슬래시 명령 등록, 서버 초대까지 순서대로 정리한 체크리스트와 트러블슈팅.
-keywords: [봇 등록, 셋업, Developer Portal, 봇 토큰, Public Key, Application ID, Public Bot, Installation, 초대 링크, 권한, Interactions Endpoint URL, Vercel, 배포 보호, 환경변수, Supabase, 명령 등록, 트러블슈팅]
-related_files: [.env.example, scripts/register-commands.mjs, api/interactions.ts, vercel.json, supabase/migrations]
-last_updated: 2026-09-29
+summary: 디스코드 Developer Portal에서 앱·봇 등록, Installation 설정, AWS Lightsail 서버 준비(인스턴스·고정 IP·Docker), Docker Compose 배포와 업데이트, 슬래시 명령 등록, 서버 초대까지 순서대로 정리한 체크리스트와 트러블슈팅.
+keywords: [봇 등록, 셋업, Developer Portal, 봇 토큰, Application ID, Public Bot, Installation, 초대 링크, 권한, AWS, Lightsail, 고정 IP, SSH, Docker, Docker Compose, 배포, 업데이트, 로그, 스냅샷, 환경변수, 명령 등록, 트러블슈팅]
+related_files: [.env.example, scripts/register-commands.mjs, Dockerfile, compose.yml]
+last_updated: 2026-10-01
 ---
 
 # 봇 등록·배포 가이드
@@ -14,15 +14,12 @@ civil-war의 `docs/ops/discord-bot-setup.md`에서 **실제로 겪었던 문제*
 
 ## 0. 전체 순서
 
-1. 디스코드 앱과 봇 만들기 → 값 3개 확보
+1. 디스코드 앱과 봇 만들기 → 값 2개 확보
 2. Installation 설정 (초대 링크)
-3. Supabase 프로젝트 만들기
-4. Vercel 배포 + 환경변수 등록
-5. Interactions Endpoint URL 등록
-6. 슬래시 명령 등록
-7. 서버에 초대하고 테스트
-
-> **순서 주의:** 5번은 `DISCORD_PUBLIC_KEY`가 들어간 상태로 **배포가 끝난 뒤에만** 통과한다.
+3. AWS Lightsail 서버 준비 (다른 프로젝트와 같이 쓰는 서버. 한 번만 하면 된다)
+4. 서버에 봇 배포
+5. 슬래시 명령 등록
+6. 디스코드 서버에 초대하고 테스트
 
 ---
 
@@ -32,11 +29,10 @@ civil-war의 `docs/ops/discord-bot-setup.md`에서 **실제로 겪었던 문제*
 
 ### General Information 탭
 
-| 항목 | 환경변수 |
+| 항목 | 처리 |
 |---|---|
-| Application ID | `DISCORD_APPLICATION_ID` |
-| Public Key (64자) | `DISCORD_PUBLIC_KEY` |
-| Interactions Endpoint URL | 지금은 비워둔다 → 5번에서 등록 |
+| Application ID | 복사 → `DISCORD_APPLICATION_ID` |
+| Interactions Endpoint URL | **비워둔다.** 게이트웨이로 명령을 받으므로 쓰지 않는다. 값이 들어 있으면 명령이 봇에 오지 않는다 |
 | 이용약관 / 개인정보처리방침 URL | 지금은 비워둔다. 서버가 100개가 넘어 디스코드 인증을 받을 때 필요하다 |
 
 ### Bot 탭
@@ -46,7 +42,7 @@ civil-war의 `docs/ops/discord-bot-setup.md`에서 **실제로 겪었던 문제*
 - **Public Bot: ON** (누구나 자기 서버에 추가 가능)
 - **Requires OAuth2 Code Grant: OFF**
 - **Privileged Gateway Intents (Presence / Server Members / Message Content): 전부 OFF**
-  - 이 봇은 일반 Intent(`GUILDS`, `GUILD_VOICE_STATES`)만 쓴다.
+  - 이 봇은 일반 Intent(`Guilds`, `GuildVoiceStates`)만 쓴다.
 
 ---
 
@@ -73,62 +69,122 @@ https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applic
 
 ---
 
-## 3. Supabase
+## 3. AWS Lightsail 서버 준비
 
-1. [Supabase](https://supabase.com) → New Project (Region: Northeast Asia (Seoul))
-2. SQL Editor에서 `supabase/migrations/`의 SQL을 실행해 `sessions`, `gateway_usage` 테이블을 만든다.
-3. **Project Settings → API**에서 값 복사
-   - Project URL → `SUPABASE_URL`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` (**비밀**. 서버에서만 쓴다)
+여러 프로젝트를 같이 올릴 서버다. 이미 만들어 두었다면 4번으로 넘어간다.
 
-> 무료 플랜은 7일 동안 사용이 없으면 일시정지된다. 하루 한 번 도는 cron(`api/cron.ts`)이 이걸 막는다.
+### 3-1. 인스턴스 만들기
 
----
+[Lightsail 콘솔](https://lightsail.aws.amazon.com) → **Create instance**
 
-## 4. Vercel
-
-1. [Vercel](https://vercel.com) → Add New Project → GitHub `gyeolhwi/team-splitter` 가져오기
-2. **Settings → Deployment Protection → Vercel Authentication: OFF**
-   - 켜져 있으면 디스코드 요청이 로그인 화면에 막힌다. 5번에서 "엔드포인트 URL을 인증할 수 없습니다"가 뜬다.
-3. **Settings → Environment Variables** (Production)
-
-| 변수 | 값 |
+| 항목 | 선택 |
 |---|---|
-| `DISCORD_APPLICATION_ID` | 1번에서 확보 |
-| `DISCORD_PUBLIC_KEY` | 1번에서 확보 |
-| `DISCORD_BOT_TOKEN` | 1번에서 확보 |
-| `SUPABASE_URL` | 3번에서 확보 |
-| `SUPABASE_SERVICE_ROLE_KEY` | 3번에서 확보 |
-| `CRON_SECRET` | 임의의 긴 문자열 |
+| Region | **Seoul (ap-northeast-2)** |
+| Platform | Linux/Unix |
+| Blueprint | **OS Only → Ubuntu 24.04 LTS** |
+| Network type | **Dual-stack** (IPv4 포함). IPv6 전용은 고르지 않는다 |
+| Plan | **$24 (4GB RAM, 2 vCPU, 80GB SSD)** |
+| 이름 | 예: `home-server` |
 
-4. **환경변수를 넣거나 바꾼 뒤에는 반드시 새로 배포한다.** 이미 떠 있는 배포에는 반영되지 않는다. 새 커밋을 push하는 게 가장 확실하다.
+### 3-2. 고정 IP 붙이기
 
-> ⚠️ `DISCORD_APPLICATION_ID`가 빠지면 결과 메시지를 수정하지 못해서, 명령이 에러 없이 "처리 중"에서 멈춘다.
+인스턴스 → **Networking** 탭 → **Attach static IP** → 새로 만들어 붙인다.
 
----
+- 붙이지 않으면 재부팅할 때마다 IP가 바뀐다.
+- 인스턴스에 붙어 있는 고정 IP는 무료다. **인스턴스를 지울 때는 고정 IP도 같이 지운다.** 남겨두면 요금이 나간다.
 
-## 5. Interactions Endpoint URL 등록
+### 3-3. 방화벽
 
-General Information → **Interactions Endpoint URL**:
+Networking 탭 → IPv4 Firewall
 
-```
-https://<배포 도메인>/api/interactions
-```
+- 기본으로 SSH(22), HTTP(80)가 열려 있다. **봇만 돌린다면 더 열 포트는 없다.**
+- 웹 서비스를 올릴 때 HTTPS(443)를 추가한다.
 
-저장하면 디스코드가 확인 요청(PING)을 보내고, 봇이 PONG으로 응답하면 통과한다.
+### 3-4. 접속
 
-등록 전 확인 (선택):
+- 가장 쉬운 방법: 인스턴스 화면의 **Connect using SSH** 버튼 (브라우저 터미널)
+- 내 맥에서 접속할 때: **Account → SSH keys**에서 서울 리전 기본 키(`.pem`)를 내려받는다.
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<배포 도메인>/api/interactions
-# 401 → 정상 (라우트가 살아 있고 서명 검증이 동작함)
-# 404 → 배포 안 됨 또는 도메인 오류
-# 401인데 응답에 _vercel_sso_nonce 쿠키가 있음 → 4-2 배포 보호가 켜져 있음
+chmod 400 ~/Downloads/LightsailDefaultKey-ap-northeast-2.pem
+ssh -i ~/Downloads/LightsailDefaultKey-ap-northeast-2.pem ubuntu@<고정 IP>
 ```
+
+### 3-5. Docker 설치
+
+서버에서 실행한다.
+
+```bash
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker ubuntu
+exit   # 다시 접속해야 sudo 없이 docker를 쓸 수 있다
+```
+
+다시 접속한 뒤 확인:
+
+```bash
+docker run --rm hello-world
+mkdir -p ~/apps   # 프로젝트는 전부 이 아래에 둔다
+```
+
+### 3-6. 자동 스냅샷 (권장)
+
+인스턴스 → **Snapshots** 탭 → **Automatic snapshots: ON**
+
+- 하루에 한 번 서버 전체를 백업한다. 최근 7개를 보관한다.
+- 월 $1~4 정도 추가된다.
+- 서버 플랜을 올릴 때도 스냅샷으로 새 인스턴스를 만들고 고정 IP를 옮겨 붙인다.
 
 ---
 
-## 6. 슬래시 명령 등록
+## 4. 서버에 봇 배포
+
+### 4-1. 처음 배포
+
+```bash
+cd ~/apps
+git clone https://github.com/gyeolhwi/team-splitter.git
+cd team-splitter
+cp .env.example .env
+nano .env   # DISCORD_APPLICATION_ID, DISCORD_BOT_TOKEN 입력 후 저장
+docker compose up -d --build
+```
+
+확인:
+
+```bash
+docker compose ps        # STATUS가 Up 이면 실행 중
+docker compose logs -f   # "로그인 완료" 로그가 보이면 정상. Ctrl+C로 빠져나온다
+```
+
+- `compose.yml`에 `restart: unless-stopped`가 있어서 봇이 죽거나 서버가 재부팅돼도 자동으로 다시 켜진다.
+- 진행 중인 판은 `./data/team-splitter.db`에 저장된다. 이 폴더는 지우지 않는다.
+
+### 4-2. 업데이트 (코드가 바뀌었을 때)
+
+```bash
+cd ~/apps/team-splitter
+git pull
+docker compose up -d --build
+```
+
+- 재시작하는 몇 초 동안은 봇이 응답하지 않는다. 진행 중인 판은 유지된다.
+- `.env`를 바꿨을 때도 `docker compose up -d`를 다시 실행해야 반영된다.
+
+### 4-3. 자주 쓰는 명령
+
+| 하고 싶은 것 | 명령 |
+|---|---|
+| 로그 보기 | `docker compose logs -f --tail 100` |
+| 재시작 | `docker compose restart` |
+| 멈추기 | `docker compose down` |
+| 서버 전체 메모리 확인 | `docker stats --no-stream` |
+
+---
+
+## 5. 슬래시 명령 등록
+
+내 맥의 프로젝트 폴더에서 실행한다. `.env.local`에 `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`이 있어야 한다.
 
 ```bash
 node --env-file=.env.local scripts/register-commands.mjs
@@ -141,15 +197,14 @@ node --env-file=.env.local scripts/register-commands.mjs
 
 ---
 
-## 7. 서버에 초대하고 테스트
+## 6. 디스코드 서버에 초대하고 테스트
 
 1. 2번의 초대 링크로 서버에 추가한다. 서버 관리 권한이 있는 사람만 추가할 수 있다.
-2. 서버 설정 → 멤버에서 봇이 있는지 확인한다.
-   - 봇은 항상 **오프라인으로 표시된다. 정상이다.** 상시 연결하지 않는 구조이기 때문이다.
+2. 서버 설정 → 멤버에서 봇이 있는지 확인한다. 봇이 실행 중이면 **온라인**으로 보인다.
 3. 팀 채널을 만들 카테고리에서 봇 역할에 **채널 관리 권한이 막혀 있지 않은지** 확인한다.
 4. 음성채널에 2명 이상 들어간 상태에서 `/team generate` → **[split team]** → `/team assemble` 순서로 확인한다.
 
-> 슬래시 명령은 디스코드에서 사람이 직접 입력해야 한다. 서명은 디스코드만 만들 수 있어서 `curl`로는 흉내 낼 수 없다.
+> 로컬에서 먼저 확인하고 싶으면 내 맥에서 `npm run dev`로 봇을 띄운다. **서버의 봇과 동시에 켜면 명령이 두 쪽으로 들어가니** 서버 쪽을 `docker compose down`으로 멈추고 테스트한다.
 
 ---
 
@@ -157,12 +212,13 @@ node --env-file=.env.local scripts/register-commands.mjs
 
 | 증상 | 원인 | 해결 |
 |---|---|---|
-| "엔드포인트 URL을 인증할 수 없습니다" | Vercel 배포 보호가 켜져 있음, 또는 `DISCORD_PUBLIC_KEY` 없이 배포됨 | 4-2 끄기 / 환경변수 넣고 새로 배포 |
-| 명령이 "처리 중"에서 멈춤 | `DISCORD_APPLICATION_ID` 누락, 또는 환경변수 바꾼 뒤 재배포 안 함 | 4-3, 4-4 |
-| 명령이 입력창에 안 보임 | 등록 안 함, 반영 대기 중, 디스코드 캐시 | 6번 실행 / 최대 1시간 대기 / Ctrl+R |
+| 봇이 오프라인으로 보임 | 컨테이너가 꺼져 있음, 토큰이 틀림 | `docker compose ps`, `docker compose logs`로 확인. 토큰 오류면 `.env` 수정 후 `docker compose up -d` |
+| 명령을 쳐도 "애플리케이션이 응답하지 않았습니다" | Developer Portal에 Interactions Endpoint URL이 들어 있음, 또는 봇이 꺼져 있음 | 1번에서 URL을 비우고 저장 / 봇 상태 확인 |
+| 명령이 입력창에 안 보임 | 등록 안 함, 반영 대기 중, 디스코드 캐시 | 5번 실행 / 최대 1시간 대기 / Ctrl+R |
+| 명령이 두 번 처리되거나 이상하게 동작함 | 로컬과 서버에서 봇이 동시에 실행 중 | 한쪽을 끈다 |
 | 초대했는데 멤버 목록에 봇이 없음 | `bot` 스코프 없이 초대함 | 2번 설정 확인 후 다시 초대 |
 | 채널 생성 실패 (403) | 카테고리에서 봇 역할의 채널 관리 권한이 막힘 | 카테고리 권한에서 봇 역할 허용 |
 | 이동 실패 "음성 미접속" (40032) | 대상이 음성에 없음 | 정상 동작. 결과 메시지에 표시됨 |
-| "오늘 사용량 초과" 안내 | 하루 연결 800번 초과 | 다음 날 자동 해제. 자주 나오면 상시 실행 구조를 검토한다 |
-| 봇 토큰 초기화 메일을 받음 | 하루 연결 1,000번 초과 | 새 토큰을 Vercel 환경변수에 넣고 재배포. 사용량 기록 로직 점검 |
-| 모든 명령이 DB 에러 | Supabase 프로젝트 일시정지 | Supabase 대시보드에서 Restore. cron이 도는지 확인 |
+| SSH 접속이 안 됨 | 키 권한, 사용자 이름, IP 오류 | `chmod 400` 확인, 사용자는 `ubuntu`, 고정 IP로 접속. 급하면 콘솔의 브라우저 SSH 사용 |
+| 서버 전체가 느리거나 컨테이너가 죽음 | 메모리 부족 | `docker stats`로 확인. 부족하면 스냅샷으로 8GB 플랜으로 옮긴다 |
+| 디스크 부족 | 오래된 Docker 이미지가 쌓임 | `docker image prune -a` |

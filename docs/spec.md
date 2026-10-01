@@ -3,9 +3,9 @@ id: spec
 title: 기능 명세
 category: spec
 summary: 봇의 목적과 목표, 명령어(/team generate, /team assemble)와 버튼(split team, assemble), 팀 편성 규칙, 분배·모으기 동작, 꼬이지 않게 하는 안전장치, 알려진 제약을 정의한다.
-keywords: [목적, 목표, 기능, 명령어, /team generate, /team assemble, split team, assemble, 팀 편성, team, number, non-target, 미지정, 분배, 모으기, 자동 정리, 안전장치, 제약, 사용량 한도]
-related_files: [src/commands/team.ts, src/domain/team-generator.ts, src/services/session-service.ts]
-last_updated: 2026-09-29
+keywords: [목적, 목표, 기능, 명령어, /team generate, /team assemble, split team, assemble, 팀 편성, team, number, non-target, 미지정, 분배, 모으기, 자동 정리, 안전장치, 제약, 재시작]
+related_files: [src/discord/commands.ts, src/domain/team-generator.ts, src/services/session.ts]
+last_updated: 2026-10-01
 ---
 
 # 기능 명세
@@ -82,12 +82,9 @@ last_updated: 2026-09-29
 
 1. **실행하는 순간의 실제 상태를 본다.** 누가 어디 있는지는 버튼을 누르는 순간 다시 확인한다. 그래서 사람들이 채널을 오가도 꼬이지 않는다.
 2. **봇이 만든 채널만, 비어 있을 때만 지운다.** 채널은 ID로만 찾는다. 사람이 있는 채널을 지우면 그 사람의 음성 연결이 끊기기 때문에 지우지 않는다.
-3. **남은 판은 결국 정리된다.** assemble 없이 흩어진 판은 그 서버에서 다음 명령이 들어올 때와 하루 한 번 정기 점검 때 확인해서, 팀 채널이 모두 비어 있으면 채널을 지우고 판을 끝낸다.
+3. **남은 판은 자동으로 정리된다.** assemble 없이 흩어져서 한 판의 팀 채널이 모두 비면, 1분 뒤 다시 확인하고 여전히 비어 있으면 채널을 지우고 판을 끝낸다. 봇이 재시작된 경우에도 시작할 때 한 번 점검한다.
 
 ## 7. 알려진 제약
 
-봇이 항상 켜져 있지 않고 필요할 때만 디스코드에 잠깐 연결하는 방식이라 아래 제약이 있다. 이유는 `docs/tech.md`에 있다.
-
-- **하루 사용량 한도:** 편성과 assemble 한 번에 연결을 1번씩 쓴다. 모든 서버를 합쳐 하루 800번을 넘으면 그날은 "사용량 초과"로 안내한다.
-- **자동 정리가 즉시 되지 않는다:** 팀 채널이 비어도 바로 지워지지 않고, 위 3번 시점에 정리된다.
+- **재시작하는 동안 응답하지 않는다:** 업데이트 배포나 서버 재부팅 중 몇 초 동안은 명령과 버튼이 동작하지 않는다. 진행 중인 판과 편성 결과는 저장되어 있어서 재시작 뒤 그대로 이어진다.
 - **assemble 직후 몇 초 사이에 팀 채널에 새로 들어온 사람**은 채널이 지워지면서 음성 연결이 끊길 수 있다.
