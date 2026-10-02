@@ -18,6 +18,11 @@ documents:
     title: 봇 등록·배포 가이드
     summary: 디스코드 Developer Portal에서 앱·봇 등록, Installation 설정, AWS Lightsail 서버 준비(인스턴스·고정 IP·Docker), Docker Compose 배포와 업데이트, 슬래시 명령 등록, 서버 초대까지 순서대로 정리한 체크리스트와 트러블슈팅.
     keywords: [봇 등록, 셋업, Developer Portal, 봇 토큰, Application ID, Public Bot, Installation, 초대 링크, 권한, AWS, Lightsail, 고정 IP, SSH, Docker, Docker Compose, 배포, 업데이트, 로그, 스냅샷, 환경변수, 명령 등록, 트러블슈팅]
+
+  - path: docs/persona.md
+    title: 봇 페르소나 (배근이)
+    summary: 셔틀봇 안내 메시지의 캐릭터 설정과 말투 규칙. 문구는 src/messages.ts, 이미지는 assets/persona/.
+    keywords: [페르소나, 말투, 배근이, 캐릭터, 안내 문구, messages, 이미지, 프로필]
 ```
 
 문서를 고치면 해당 문서의 프론트매터와 이 색인을 같이 갱신한다.

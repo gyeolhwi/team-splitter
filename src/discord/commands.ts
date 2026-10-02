@@ -9,6 +9,7 @@ import {
   type Interaction,
   type RepliableInteraction,
 } from 'discord.js';
+import { ERR, MSG } from '../messages.js';
 import type { Session } from '../store/db.js';
 import type { AssembleOutcome, SessionService } from '../services/session.js';
 
@@ -20,7 +21,7 @@ const NO_PINGS = { parse: [] } as const;
 
 export async function handleInteraction(interaction: Interaction, service: SessionService): Promise<void> {
   if (!interaction.inCachedGuild()) {
-    if (interaction.isRepliable()) await replyError(interaction, '서버 안에서만 쓸 수 있어요.');
+    if (interaction.isRepliable()) await replyError(interaction, ERR.guildOnly);
     return;
   }
 
@@ -39,8 +40,8 @@ export async function handleInteraction(interaction: Interaction, service: Sessi
 
 async function handleGenerate(interaction: ChatInputCommandInteraction<'cached'>, service: SessionService) {
   const lobby = interaction.member.voice.channel;
-  if (!lobby) return replyError(interaction, '음성채널에 먼저 들어간 뒤 다시 해 주세요.');
-  if (lobby.type !== ChannelType.GuildVoice) return replyError(interaction, '일반 음성채널에서만 쓸 수 있어요.');
+  if (!lobby) return replyError(interaction, ERR.notInVoice);
+  if (lobby.type !== ChannelType.GuildVoice) return replyError(interaction, ERR.notGuildVoice);
 
   const team = interaction.options.getInteger('team') ?? undefined;
   const number = interaction.options.getInteger('number') ?? undefined;
@@ -79,10 +80,10 @@ async function handleAssembleButton(interaction: ButtonInteraction<'cached'>, se
   if (!session) {
     // 끝난 판의 버튼은 누르는 순간 지운다.
     await interaction.update({ components: [] });
-    return followUpError(interaction, '이미 끝난 판이에요.');
+    return followUpError(interaction, ERR.ended);
   }
   if (!service.canAssemble(session, interaction.user.id)) {
-    return replyError(interaction, '판을 연 사람이나 참가자만 모을 수 있어요.');
+    return replyError(interaction, ERR.notMember);
   }
 
   await interaction.deferUpdate();
@@ -105,9 +106,9 @@ async function handleAssembleCommand(interaction: ChatInputCommandInteraction<'c
     interaction.user.id,
     interaction.member.voice.channelId,
   );
-  if (!session) return replyError(interaction, '모을 판이 없어요.');
+  if (!session) return replyError(interaction, ERR.nothingToAssemble);
   if (!service.canAssemble(session, interaction.user.id)) {
-    return replyError(interaction, '판을 연 사람이나 참가자만 모을 수 있어요.');
+    return replyError(interaction, ERR.notMember);
   }
 
   await interaction.deferReply();
@@ -160,10 +161,10 @@ function fit(build: (withMembers: boolean) => string): string {
 function formatDraft(session: Session, unassigned: string[]): string {
   return fit((withMembers) => {
     const list = (ids: string[]) => (withMembers ? ` ${mentions(ids)}` : '');
-    const lines = [`🎲 **팀 편성 결과** · <#${session.lobbyId}>`, ''];
-    session.teams.forEach((team, i) => lines.push(`**${i + 1}팀** (${team.length}명)${list(team)}`));
-    if (unassigned.length > 0) lines.push(`**미지정** (${unassigned.length}명)${list(unassigned)}`);
-    lines.push('', `<@${session.hostId}>님이 **split team**을 누르면 팀 채널로 옮겨요. 다시 섞으려면 명령을 다시 쳐 주세요.`);
+    const lines = [MSG.draftTitle(session.lobbyId), ''];
+    session.teams.forEach((team, i) => lines.push(`${MSG.team(i, team.length)}${list(team)}`));
+    if (unassigned.length > 0) lines.push(`${MSG.unassigned(unassigned.length)}${list(unassigned)}`);
+    lines.push('', MSG.draftFooter(session.hostId));
     return lines.join('\n');
   });
 }
@@ -171,25 +172,18 @@ function formatDraft(session: Session, unassigned: string[]): string {
 function formatSplit(session: Session, notMoved: string[]): string {
   return fit((withMembers) => {
     const list = (ids: string[]) => (withMembers ? ` ${mentions(ids)}` : ` ${ids.length}명`);
-    const lines = [`🚌 **분배 완료** · <#${session.lobbyId}>`, ''];
+    const lines = [MSG.splitTitle(session.lobbyId), ''];
     session.teams.forEach((team, i) => lines.push(`<#${session.teamChannelIds[i]}>${list(team)}`));
-    if (notMoved.length > 0) lines.push('', `로비에 없어서 옮기지 못한 사람:${list(notMoved)}`);
-    lines.push('', '게임이 끝나면 **assemble**을 눌러 로비로 모아요.');
+    if (notMoved.length > 0) lines.push('', `${MSG.notMoved}${list(notMoved)}`);
+    lines.push('', MSG.splitFooter);
     return lines.join('\n');
   });
 }
 
 function formatAssemble(outcome: Extract<AssembleOutcome, { ok: true }>): string {
-  const where = outcome.lobbyRecreated
-    ? `원래 로비가 없어서 새로 만든 <#${outcome.lobbyId}>`
-    : `<#${outcome.lobbyId}>`;
-  if (outcome.keptChannels === 0) {
-    const lines = [`✅ **모으기 완료** · ${where}로 ${outcome.moved}명을 옮기고 판을 끝냈어요.`];
-    if (outcome.failed > 0) lines.push(`옮기지 못한 사람 ${outcome.failed}명이 있어요.`);
-    return lines.join('\n');
-  }
-  return [
-    `⚠️ **일부만 모았어요** · ${where}로 ${outcome.moved}명을 옮겼어요.`,
-    `사람이 남아 있는 팀 채널 ${outcome.keptChannels}개는 지우지 않았어요. 비면 자동으로 정리되고, \`/team assemble\`로 다시 모을 수도 있어요.`,
-  ].join('\n');
+  const where = MSG.lobby(outcome.lobbyId, outcome.lobbyRecreated);
+  if (outcome.keptChannels > 0) return MSG.assembledPartial(where, outcome.moved, outcome.keptChannels);
+  const lines = [MSG.assembled(where, outcome.moved)];
+  if (outcome.failed > 0) lines.push(MSG.assembleFailed(outcome.failed));
+  return lines.join('\n');
 }
