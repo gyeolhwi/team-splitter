@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ChannelType, type Guild, type VoiceBasedChannel, type VoiceState } from 'discord.js';
 import { generateTeams, type TeamOptions } from '../domain/team-generator.js';
+import { ERR } from '../messages.js';
 import type { Session, SessionStore } from '../store/db.js';
 
 /** 팀 채널이 전부 빈 뒤 다시 확인하기까지 기다리는 시간 */
@@ -30,16 +31,16 @@ export class SessionService {
   generate(lobby: VoiceBasedChannel, hostId: string, options: TeamOptions, excludeIds: Set<string>): GenerateOutcome {
     const guildId = lobby.guild.id;
     if (this.store.listActive(guildId).some((s) => s.teamChannelIds.includes(lobby.id))) {
-      return { ok: false, reason: '진행 중인 판의 팀 채널에서는 시작할 수 없어요. 로비에서 다시 해 주세요.' };
+      return { ok: false, reason: ERR.inTeamChannel };
     }
 
     const participantIds = lobby.members.filter((m) => !m.user.bot && !excludeIds.has(m.id)).map((m) => m.id);
     if (participantIds.length < 2) {
-      return { ok: false, reason: '팀을 나누려면 음성채널에 2명 이상 있어야 해요.' };
+      return { ok: false, reason: ERR.tooFew };
     }
     const result = generateTeams(participantIds, options);
     if (!result.ok) {
-      return { ok: false, reason: `팀을 만들 인원이 부족해요. ${result.shortBy}명이 더 있어야 해요.` };
+      return { ok: false, reason: ERR.shortBy(result.shortBy) };
     }
 
     const session: Session = {
@@ -62,16 +63,16 @@ export class SessionService {
   async split(guild: Guild, sessionId: string, userId: string): Promise<SplitOutcome> {
     const session = this.store.get(sessionId);
     if (!session || (session.status === 'draft' && Date.now() - session.createdAt > DRAFT_TTL_MS)) {
-      return { ok: false, stale: true, reason: '만료됐거나 더 최신 편성이 있는 결과예요. `/team generate`를 다시 해 주세요.' };
+      return { ok: false, stale: true, reason: ERR.stale };
     }
-    if (session.status === 'active') return { ok: false, stale: true, reason: '이미 분배한 판이에요.' };
-    if (session.hostId !== userId) return { ok: false, reason: '판을 연 사람만 분배할 수 있어요.' };
+    if (session.status === 'active') return { ok: false, stale: true, reason: ERR.alreadySplit };
+    if (session.hostId !== userId) return { ok: false, reason: ERR.notHost };
 
     const lobby = await fetchVoiceChannel(guild, session.lobbyId);
-    if (!lobby) return { ok: false, reason: '로비 채널이 없어져서 분배할 수 없어요.' };
+    if (!lobby) return { ok: false, reason: ERR.lobbyGone };
 
     if (!this.store.activate(session.id)) {
-      return { ok: false, reason: '이 로비에 진행 중인 판이 있어요. 먼저 assemble 해 주세요.' };
+      return { ok: false, reason: ERR.lobbyBusy };
     }
 
     this.busy.add(session.id);
@@ -104,7 +105,7 @@ export class SessionService {
       console.error(`[split ${session.id}] 팀 채널 생성 실패`, error);
       await Promise.allSettled(channels.map((c) => c.delete()));
       this.store.revertToDraft(session.id);
-      return { ok: false, reason: '팀 채널을 만들지 못했어요. 봇의 채널 관리 권한을 확인해 주세요.' };
+      return { ok: false, reason: ERR.createFailed };
     }
 
     const teamChannelIds = channels.map((c) => c.id);
@@ -157,9 +158,9 @@ export class SessionService {
 
   async assemble(guild: Guild, sessionId: string): Promise<AssembleOutcome> {
     // 분배 중이거나 이미 모으는 중이면 끼어들지 않는다.
-    if (this.busy.has(sessionId)) return { ok: false, reason: '분배나 모으기가 진행 중이에요. 잠시 후 다시 해 주세요.' };
+    if (this.busy.has(sessionId)) return { ok: false, reason: ERR.busy };
     const session = this.getActive(sessionId);
-    if (!session) return { ok: false, reason: '이미 끝난 판이에요.' };
+    if (!session) return { ok: false, reason: ERR.ended };
 
     this.busy.add(sessionId);
     try {
@@ -174,7 +175,7 @@ export class SessionService {
     const lobbyRecreated = !lobby;
     if (!lobby) {
       lobby = await this.recreateLobby(guild, session);
-      if (!lobby) return { ok: false, reason: '로비가 없어져서 새로 만들려 했지만 실패했어요. 봇의 채널 관리 권한을 확인해 주세요.' };
+      if (!lobby) return { ok: false, reason: ERR.lobbyRecreateFailed };
     }
     this.cancelCleanup(session.id);
 

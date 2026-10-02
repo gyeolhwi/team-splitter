@@ -105,9 +105,11 @@ team-splitter/
 │   ├── index.ts                 # 봇 시작: 게이트웨이 연결, 이벤트 등록, 시작 시 점검
 │   ├── discord/commands.ts      # 슬래시 명령·버튼 처리
 │   ├── domain/team-generator.ts # 팀 편성 (순수 함수)
+│   ├── messages.ts              # 사용자에게 보이는 문구 전부 (말투: docs/persona.md)
 │   ├── services/session.ts      # generate, split team, assemble, 자동 정리
 │   └── store/db.ts              # SQLite (sessions)
 ├── scripts/register-commands.mjs # 슬래시 명령 글로벌 등록
+├── assets/persona/              # 봇 캐릭터 이미지, 상황별 이미지 프롬프트
 ├── tests/                       # team-generator, db 단위 테스트
 ├── Dockerfile
 ├── compose.yml                  # restart: unless-stopped, ./data 볼륨

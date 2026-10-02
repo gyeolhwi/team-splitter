@@ -1,5 +1,6 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { handleInteraction, replyError } from './discord/commands.js';
+import { ERR } from './messages.js';
 import { SessionService } from './services/session.js';
 import { SessionStore } from './store/db.js';
 
@@ -29,7 +30,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } catch (error) {
     console.error('interaction 처리 실패', error);
     if (interaction.isRepliable()) {
-      await replyError(interaction, '문제가 생겼어요. 잠시 후 다시 시도해 주세요.').catch(() => undefined);
+      await replyError(interaction, ERR.unknown).catch(() => undefined);
     }
   }
 });
