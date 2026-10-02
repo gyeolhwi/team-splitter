@@ -12,7 +12,9 @@ export type Failure = { ok: false; reason: string };
 
 export type GenerateOutcome = { ok: true; session: Session; unassigned: string[] } | Failure;
 export type SplitOutcome = { ok: true; session: Session; notMoved: string[] } | Failure;
-export type AssembleOutcome = { ok: true; moved: number; failed: number; keptChannels: number } | Failure;
+export type AssembleOutcome =
+  | { ok: true; lobbyId: string; lobbyRecreated: boolean; moved: number; failed: number; keptChannels: number }
+  | Failure;
 
 export class SessionService {
   private readonly cleanupTimers = new Map<string, NodeJS.Timeout>();
@@ -160,8 +162,12 @@ export class SessionService {
   }
 
   private async moveBackAndClose(guild: Guild, session: Session): Promise<AssembleOutcome> {
-    const lobby = await fetchVoiceChannel(guild, session.lobbyId);
-    if (!lobby) return { ok: false, reason: '로비 채널이 없어져서 모을 수 없어요.' };
+    let lobby = await fetchVoiceChannel(guild, session.lobbyId);
+    const lobbyRecreated = !lobby;
+    if (!lobby) {
+      lobby = await this.recreateLobby(guild, session);
+      if (!lobby) return { ok: false, reason: '로비가 없어져서 새로 만들려 했지만 실패했어요. 봇의 채널 관리 권한을 확인해 주세요.' };
+    }
     this.cancelCleanup(session.id);
 
     let moved = 0;
@@ -195,7 +201,18 @@ export class SessionService {
       const remaining = { ...session, teamChannelIds: keptChannelIds };
       if (allTeamChannelsEmpty(guild, remaining)) this.scheduleCleanup(session.id);
     }
-    return { ok: true, moved, failed, keptChannels: keptChannelIds.length };
+    return { ok: true, lobbyId: lobby.id, lobbyRecreated, moved, failed, keptChannels: keptChannelIds.length };
+  }
+
+  /** 로비가 지워졌으면 팀 채널과 같은 카테고리(= 원래 로비의 카테고리)에 새로 만든다. */
+  private async recreateLobby(guild: Guild, session: Session): Promise<VoiceBasedChannel | undefined> {
+    const parentId = session.teamChannelIds.map((id) => guild.channels.cache.get(id)?.parentId).find(Boolean);
+    try {
+      return await guild.channels.create({ name: '로비', type: ChannelType.GuildVoice, parent: parentId ?? undefined });
+    } catch (error) {
+      console.error(`[assemble ${session.id}] 로비 재생성 실패`, error);
+      return undefined;
+    }
   }
 
   /** 팀 채널에서 누가 나갔을 때 호출. 판의 팀 채널이 전부 비면 1분 뒤 다시 확인한다. */

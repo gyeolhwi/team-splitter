@@ -10,7 +10,7 @@ import {
   type RepliableInteraction,
 } from 'discord.js';
 import type { Session } from '../store/db.js';
-import type { SessionService } from '../services/session.js';
+import type { AssembleOutcome, SessionService } from '../services/session.js';
 
 const SPLIT_PREFIX = 'split:';
 const ASSEMBLE_PREFIX = 'assemble:';
@@ -82,7 +82,7 @@ async function handleAssembleButton(interaction: ButtonInteraction<'cached'>, se
 
   await interaction.editReply({
     content: fit((withHistory) =>
-      withHistory ? `${interaction.message.content}\n\n${formatAssemble(session, outcome)}` : formatAssemble(session, outcome),
+      withHistory ? `${interaction.message.content}\n\n${formatAssemble(outcome)}` : formatAssemble(outcome),
     ),
     components: [],
     allowedMentions: NO_PINGS,
@@ -106,7 +106,7 @@ async function handleAssembleCommand(interaction: ChatInputCommandInteraction<'c
     await interaction.deleteReply().catch(() => undefined);
     return followUpError(interaction, outcome.reason);
   }
-  await interaction.editReply({ content: formatAssemble(session, outcome), allowedMentions: NO_PINGS });
+  await interaction.editReply({ content: formatAssemble(outcome), allowedMentions: NO_PINGS });
 }
 
 export async function replyError(interaction: RepliableInteraction, message: string) {
@@ -164,14 +164,17 @@ function formatSplit(session: Session, notMoved: string[]): string {
   });
 }
 
-function formatAssemble(session: Session, outcome: { moved: number; failed: number; keptChannels: number }): string {
+function formatAssemble(outcome: Extract<AssembleOutcome, { ok: true }>): string {
+  const where = outcome.lobbyRecreated
+    ? `원래 로비가 없어서 새로 만든 <#${outcome.lobbyId}>`
+    : `<#${outcome.lobbyId}>`;
   if (outcome.keptChannels === 0) {
-    const lines = [`✅ **모으기 완료** · <#${session.lobbyId}>로 ${outcome.moved}명을 옮기고 판을 끝냈어요.`];
+    const lines = [`✅ **모으기 완료** · ${where}로 ${outcome.moved}명을 옮기고 판을 끝냈어요.`];
     if (outcome.failed > 0) lines.push(`옮기지 못한 사람 ${outcome.failed}명이 있어요.`);
     return lines.join('\n');
   }
   return [
-    `⚠️ **일부만 모았어요** · <#${session.lobbyId}>로 ${outcome.moved}명을 옮겼어요.`,
+    `⚠️ **일부만 모았어요** · ${where}로 ${outcome.moved}명을 옮겼어요.`,
     `사람이 남아 있는 팀 채널 ${outcome.keptChannels}개는 지우지 않았어요. 비면 자동으로 정리되고, \`/team assemble\`로 다시 모을 수도 있어요.`,
   ].join('\n');
 }
