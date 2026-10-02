@@ -5,7 +5,7 @@ category: tech
 summary: AWS Lightsail 서울 서버 한 대에 Docker로 상시 실행하는 구성. discord.js 게이트웨이 연결로 명령과 음성 상태를 받는 방식, 자동 정리, 사용하는 디스코드 API, 봇 권한, SQLite 저장, 환경변수, 폴더 구조, 서버 비용을 정리한다.
 keywords: [기술 스택, AWS, Lightsail, Docker, Docker Compose, 상시 실행, discord.js, 게이트웨이, voice_states, voiceStateUpdate, 자동 정리, REST API, 권한, Intents, SQLite, 저장, 환경변수, 폴더 구조, 비용]
 related_files: [src/index.ts, src/discord/commands.ts, src/services/session.ts, src/store/db.ts, scripts/register-commands.mjs, Dockerfile, compose.yml]
-last_updated: 2026-10-01
+last_updated: 2026-10-02
 ---
 
 # 기술 구성
@@ -43,7 +43,7 @@ last_updated: 2026-10-01
 - `voiceStateUpdate` 이벤트로 **팀 채널에서 사람이 나가는 순간**을 안다.
 - 어떤 판의 팀 채널이 **전부 비면 1분 기다렸다가 다시 확인**하고, 여전히 비어 있으면 채널을 지우고 판을 끝낸다. 잠깐 나갔다 들어오는 경우에 채널이 사라지지 않게 하려는 유예 시간이다.
 - 봇이 재시작되면(배포, 서버 재부팅) 시작할 때 진행 중인 판을 SQLite에서 읽어 같은 기준으로 한 번 점검한다.
-- split team 전 편성 결과(draft)는 1시간마다 확인해서 하루가 지난 것을 지운다.
+- split team 전 편성 결과(draft)는 10분 동안만 유효하다. 같은 로비에서 다시 편성하면 이전 draft를 지우고, 1시간마다 만료된 draft를 지운다.
 
 ## 3. 사용하는 디스코드 API
 
@@ -92,10 +92,12 @@ discord.js 메서드로 호출한다. 괄호 안은 실제 REST 엔드포인트�
 | `DISCORD_APPLICATION_ID` | 명령 등록 | 아님 |
 | `DISCORD_BOT_TOKEN` | 게이트웨이 연결, API 호출, 명령 등록 | **비밀** |
 
+| `DB_PATH` | SQLite 파일 경로. 기본 `data/team-splitter.db`, Docker에서는 `/app/data/team-splitter.db` | 아님 |
+
 - 로컬: `.env.local`, 서버: 프로젝트 폴더의 `.env`. 둘 다 git에 올리지 않는다.
 - 등록 절차는 `docs/setup.md`를 참고한다.
 
-## 7. 폴더 구조 (예정)
+## 7. 폴더 구조
 
 ```text
 team-splitter/
@@ -106,10 +108,12 @@ team-splitter/
 │   ├── services/session.ts      # generate, split team, assemble, 자동 정리
 │   └── store/db.ts              # SQLite (sessions)
 ├── scripts/register-commands.mjs # 슬래시 명령 글로벌 등록
-├── tests/team-generator.test.ts
+├── tests/                       # team-generator, db 단위 테스트
 ├── Dockerfile
 ├── compose.yml                  # restart: unless-stopped, ./data 볼륨
 └── .env.example
+
+npm 스크립트: `dev`(tsx watch, `.env.local`), `build`(tsc → `dist/`), `start`, `test`(Vitest), `typecheck`, `register`(명령 등록)
 ```
 
 ## 8. 서버와 비용
