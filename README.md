@@ -36,6 +36,7 @@ TypeScript · discord.js · SQLite · Docker. AWS Lightsail 서울 서버에서 
 | [docs/spec.md](docs/spec.md) | 명령어, 편성 규칙, 동작, 안전장치 |
 | [docs/tech.md](docs/tech.md) | 기술 구성, 봇 권한, 저장, 폴더 구조, 서버 비용 |
 | [docs/persona.md](docs/persona.md) | 배근이 캐릭터와 안내 말투 |
+| [docs/discord-guide.md](docs/discord-guide.md) | 이용안내 채널 게시글, 봇 소개 문구 |
 | [docs/setup.md](docs/setup.md) | 봇 등록, 서버 준비, 로컬 실행, 트러블슈팅 |
 | [docs/deploy.md](docs/deploy.md) | 서버 배포·업데이트 런북 |
 | [INDEX.md](INDEX.md) | 문서 색인 (AI 참조용) |
