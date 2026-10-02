@@ -1,0 +1,16 @@
+ ✓ tests/team-generator.test.ts > generateTeams > 옵션이 없으면 2팀 균등 2ms
+ ✓ tests/team-generator.test.ts > generateTeams > team:K 는 K팀에 균등하게 나눈다 0ms
+ ✓ tests/team-generator.test.ts > generateTeams > number:S 는 S명씩 나누고 남는 사람은 미지정 0ms
+ ✓ tests/team-generator.test.ts > generateTeams > team + number 는 딱 K팀 × S명까지, 모자라면 앞 팀부터 채운다 0ms
+ ✓ tests/team-generator.test.ts > generateTeams > 빈 팀은 만들지 않는다 0ms
+ ✓ tests/team-generator.test.ts > generateTeams > 팀이 0개면 부족한 인원을 알려준다 0ms
+ ✓ tests/team-generator.test.ts > generateTeams > 모든 참가자가 정확히 한 번씩 들어간다 0ms
+ ✓ tests/team-generator.test.ts > shuffle > 원본을 바꾸지 않고 같은 원소를 돌려준다 0ms
+ ✓ tests/db.test.ts > SessionStore > draft 를 저장하고 그대로 읽는다 3ms
+ ✓ tests/db.test.ts > SessionStore > 같은 로비에는 active 판이 하나만 생긴다 1ms
+ ✓ tests/db.test.ts > SessionStore > 다른 로비는 동시에 active 가 될 수 있다 1ms
+ ✓ tests/db.test.ts > SessionStore > 같은 판을 두 번 activate 하면 두 번째는 실패한다 0ms
+ ✓ tests/db.test.ts > SessionStore > revertToDraft 뒤에는 다시 activate 할 수 있다 0ms
+ ✓ tests/db.test.ts > SessionStore > 오래된 draft 만 지운다 1ms
+ ✓ tests/commands.test.ts > parseMentions > 멘션에서 사용자 ID만 뽑는다 1ms
+ ✓ tests/commands.test.ts > parseMentions > 멘션이 없으면 빈 집합 0ms

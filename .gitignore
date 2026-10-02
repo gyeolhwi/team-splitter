@@ -6,3 +6,11 @@ dist/
 data/
 .omc/
 RESEARCH_AND_SPEC.md
+
+# issue-* workspace — evidence only stays committed so issue comments render
+.issue/**
+!.issue/*/
+!.issue/*/evidence/
+!.issue/*/evidence/**
+.issue/**/.auth.json
+.issue/**/storage-state.json
