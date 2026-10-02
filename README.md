@@ -2,7 +2,7 @@
 
 음성채널에 모인 인원을 랜덤으로 팀으로 나누고, 팀별 음성채널로 분배한 뒤, 끝나면 다시 한곳으로 모아주는 디스코드 봇입니다.
 
-> 상태: 설계 단계 (구현 전)
+> 상태: MVP 구현 (실제 서버 테스트 전)
 
 ## 주요 기능
 
@@ -19,6 +19,16 @@
 
 /team assemble   (또는 [assemble] 버튼)
   → 원래 채널로 모으기
+```
+
+## 개발
+
+```bash
+npm install
+cp .env.example .env.local   # DISCORD_APPLICATION_ID, DISCORD_BOT_TOKEN 입력
+npm run register             # 슬래시 명령 등록 (명령 정의를 바꿨을 때만)
+npm run dev                  # 봇 실행 (파일 저장 시 재시작)
+npm test                     # 단위 테스트
 ```
 
 ## 기술 스택

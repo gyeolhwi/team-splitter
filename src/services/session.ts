@@ -1,0 +1,234 @@
+import { randomUUID } from 'node:crypto';
+import { ChannelType, type Guild, type VoiceBasedChannel, type VoiceState } from 'discord.js';
+import { generateTeams, type TeamOptions } from '../domain/team-generator.js';
+import type { Session, SessionStore } from '../store/db.js';
+
+/** 팀 채널이 전부 빈 뒤 다시 확인하기까지 기다리는 시간 */
+const CLEANUP_DELAY_MS = 60_000;
+/** split 하지 않은 편성 결과를 지우는 기준 */
+const DRAFT_TTL_MS = 24 * 60 * 60_000;
+
+export type Failure = { ok: false; reason: string };
+
+export type GenerateOutcome = { ok: true; session: Session; unassigned: string[] } | Failure;
+export type SplitOutcome = { ok: true; session: Session; notMoved: string[] } | Failure;
+export type AssembleOutcome = { ok: true; moved: number; failed: number; keptChannels: number } | Failure;
+
+export class SessionService {
+  private readonly cleanupTimers = new Map<string, NodeJS.Timeout>();
+
+  constructor(
+    private readonly store: SessionStore,
+    private readonly getGuild: (guildId: string) => Guild | undefined,
+  ) {}
+
+  generate(lobby: VoiceBasedChannel, hostId: string, options: TeamOptions, excludeIds: Set<string>): GenerateOutcome {
+    const guildId = lobby.guild.id;
+    if (this.store.listActive(guildId).some((s) => s.teamChannelIds.includes(lobby.id))) {
+      return { ok: false, reason: '진행 중인 판의 팀 채널에서는 시작할 수 없어요. 로비에서 다시 해 주세요.' };
+    }
+
+    const participantIds = lobby.members.filter((m) => !m.user.bot && !excludeIds.has(m.id)).map((m) => m.id);
+    const result = generateTeams(participantIds, options);
+    if (!result.ok) {
+      return { ok: false, reason: `팀을 만들 인원이 부족해요. ${result.shortBy}명이 더 있어야 해요.` };
+    }
+
+    const session: Session = {
+      id: randomUUID(),
+      guildId,
+      lobbyId: lobby.id,
+      hostId,
+      participantIds,
+      teams: result.teams,
+      teamChannelIds: [],
+      status: 'draft',
+      createdAt: Date.now(),
+    };
+    this.store.createDraft(session);
+    return { ok: true, session, unassigned: result.unassigned };
+  }
+
+  async split(guild: Guild, sessionId: string, userId: string): Promise<SplitOutcome> {
+    const session = this.store.get(sessionId);
+    if (!session) return { ok: false, reason: '편성 결과가 만료됐어요. `/team generate`를 다시 해 주세요.' };
+    if (session.status === 'active') return { ok: false, reason: '이미 분배한 판이에요.' };
+    if (session.hostId !== userId) return { ok: false, reason: '판을 연 사람만 분배할 수 있어요.' };
+
+    const lobby = await fetchVoiceChannel(guild, session.lobbyId);
+    if (!lobby) return { ok: false, reason: '로비 채널이 없어져서 분배할 수 없어요.' };
+
+    if (!this.store.activate(session.id)) {
+      return { ok: false, reason: '이 로비에 진행 중인 판이 있어요. 먼저 assemble 해 주세요.' };
+    }
+
+    // 채널을 전부 먼저 만들고, 하나라도 실패하면 만든 채널을 지우고 끝낸다.
+    const channels: VoiceBasedChannel[] = [];
+    try {
+      for (let i = 0; i < session.teams.length; i++) {
+        channels.push(
+          await guild.channels.create({
+            name: `${i + 1}팀`,
+            type: ChannelType.GuildVoice,
+            parent: lobby.parentId ?? undefined,
+          }),
+        );
+      }
+    } catch (error) {
+      console.error(`[split ${session.id}] 팀 채널 생성 실패`, error);
+      await Promise.allSettled(channels.map((c) => c.delete()));
+      this.store.revertToDraft(session.id);
+      return { ok: false, reason: '팀 채널을 만들지 못했어요. 봇의 채널 관리 권한을 확인해 주세요.' };
+    }
+
+    const teamChannelIds = channels.map((c) => c.id);
+    this.store.setTeamChannels(session.id, teamChannelIds);
+
+    // 지금 로비에 있는 팀원만 옮긴다.
+    const notMoved: string[] = [];
+    const moves = session.teams.flatMap((team, i) =>
+      team.map(async (userId) => {
+        const voice = guild.voiceStates.cache.get(userId);
+        if (voice?.channelId !== lobby.id) {
+          notMoved.push(userId);
+          return;
+        }
+        try {
+          await voice.setChannel(channels[i]!);
+        } catch (error) {
+          console.error(`[split ${session.id}] ${userId} 이동 실패`, error);
+          notMoved.push(userId);
+        }
+      }),
+    );
+    await Promise.all(moves);
+
+    return { ok: true, session: { ...session, status: 'active', teamChannelIds }, notMoved };
+  }
+
+  /** /team assemble 을 친 사람이 속한 진행 중인 판을 찾는다. */
+  findForAssemble(guildId: string, userId: string, voiceChannelId: string | null): Session | undefined {
+    const active = this.store.listActive(guildId);
+    if (voiceChannelId) {
+      const byChannel = active.find((s) => s.lobbyId === voiceChannelId || s.teamChannelIds.includes(voiceChannelId));
+      if (byChannel) return byChannel;
+    }
+    return active
+      .filter((s) => s.hostId === userId || s.participantIds.includes(userId))
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+  }
+
+  getActive(sessionId: string): Session | undefined {
+    const session = this.store.get(sessionId);
+    return session?.status === 'active' ? session : undefined;
+  }
+
+  canAssemble(session: Session, userId: string): boolean {
+    return session.hostId === userId || session.participantIds.includes(userId);
+  }
+
+  async assemble(guild: Guild, session: Session): Promise<AssembleOutcome> {
+    const lobby = await fetchVoiceChannel(guild, session.lobbyId);
+    if (!lobby) return { ok: false, reason: '로비 채널이 없어져서 모을 수 없어요.' };
+
+    // 동시에 눌러도 한 번만 진행되도록 먼저 판을 끝낸다.
+    if (!this.store.get(session.id)) return { ok: false, reason: '이미 끝난 판이에요.' };
+    this.store.delete(session.id);
+    this.cancelCleanup(session.id);
+
+    let moved = 0;
+    let failed = 0;
+    let keptChannels = 0;
+    for (const channelId of session.teamChannelIds) {
+      const channel = guild.channels.cache.get(channelId);
+      if (!channel?.isVoiceBased()) continue;
+
+      const results = await Promise.allSettled(channel.members.map((m) => m.voice.setChannel(lobby)));
+      const channelFailed = results.filter((r) => r.status === 'rejected').length;
+      moved += results.length - channelFailed;
+      failed += channelFailed;
+
+      // 사람이 남아 있는 채널은 지우지 않는다. 지우면 그 사람의 음성 연결이 끊긴다.
+      if (channelFailed > 0) {
+        keptChannels++;
+        continue;
+      }
+      await channel.delete().catch((error) => {
+        console.error(`[assemble ${session.id}] ${channelId} 삭제 실패`, error);
+        keptChannels++;
+      });
+    }
+    return { ok: true, moved, failed, keptChannels };
+  }
+
+  /** 팀 채널에서 누가 나갔을 때 호출. 판의 팀 채널이 전부 비면 1분 뒤 다시 확인한다. */
+  onVoiceStateUpdate(oldState: VoiceState): void {
+    if (!oldState.channelId) return;
+    const session = this.store
+      .listActive(oldState.guild.id)
+      .find((s) => s.teamChannelIds.includes(oldState.channelId!));
+    if (session && allTeamChannelsEmpty(oldState.guild, session)) this.scheduleCleanup(session.id);
+  }
+
+  /** 봇이 시작할 때 진행 중인 판을 같은 기준으로 한 번 점검한다. */
+  checkOnStartup(): void {
+    for (const session of this.store.listActive()) {
+      const guild = this.getGuild(session.guildId);
+      if (!guild) {
+        // 봇이 내보내진 서버의 판
+        this.store.delete(session.id);
+        continue;
+      }
+      if (allTeamChannelsEmpty(guild, session)) this.scheduleCleanup(session.id);
+    }
+  }
+
+  purgeOldDrafts(): void {
+    const removed = this.store.deleteDraftsBefore(Date.now() - DRAFT_TTL_MS);
+    if (removed > 0) console.log(`오래된 편성 결과 ${removed}개 삭제`);
+  }
+
+  private scheduleCleanup(sessionId: string): void {
+    if (this.cleanupTimers.has(sessionId)) return;
+    const timer = setTimeout(() => {
+      this.cleanupTimers.delete(sessionId);
+      this.cleanupIfStillEmpty(sessionId).catch((error) => console.error(`[cleanup ${sessionId}] 실패`, error));
+    }, CLEANUP_DELAY_MS);
+    this.cleanupTimers.set(sessionId, timer);
+  }
+
+  private cancelCleanup(sessionId: string): void {
+    clearTimeout(this.cleanupTimers.get(sessionId));
+    this.cleanupTimers.delete(sessionId);
+  }
+
+  private async cleanupIfStillEmpty(sessionId: string): Promise<void> {
+    const session = this.getActive(sessionId);
+    if (!session) return;
+    const guild = this.getGuild(session.guildId);
+    if (!guild || !allTeamChannelsEmpty(guild, session)) return;
+
+    this.store.delete(session.id);
+    for (const channelId of session.teamChannelIds) {
+      await guild.channels.cache.get(channelId)?.delete().catch(() => undefined);
+    }
+    console.log(`[cleanup ${session.id}] 빈 팀 채널 정리, 판 종료`);
+  }
+
+  stop(): void {
+    for (const timer of this.cleanupTimers.values()) clearTimeout(timer);
+    this.cleanupTimers.clear();
+  }
+}
+
+function allTeamChannelsEmpty(guild: Guild, session: Session): boolean {
+  return session.teamChannelIds.every((id) => {
+    const channel = guild.channels.cache.get(id);
+    return !channel?.isVoiceBased() || channel.members.size === 0;
+  });
+}
+
+async function fetchVoiceChannel(guild: Guild, channelId: string): Promise<VoiceBasedChannel | undefined> {
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  return channel?.isVoiceBased() ? channel : undefined;
+}
