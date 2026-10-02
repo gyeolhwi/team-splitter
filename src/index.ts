@@ -1,6 +1,6 @@
-import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { ActivityType, Client, Events, GatewayIntentBits } from 'discord.js';
 import { handleInteraction, replyError } from './discord/commands.js';
-import { ERR } from './messages.js';
+import { ERR, STATUS } from './messages.js';
 import { SessionService } from './services/session.js';
 import { SessionStore } from './store/db.js';
 
@@ -13,7 +13,10 @@ if (!token) {
 }
 
 const store = new SessionStore(process.env.DB_PATH ?? 'data/team-splitter.db');
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
+  presence: { activities: [{ type: ActivityType.Custom, name: 'custom', state: STATUS }] },
+});
 const service = new SessionService(store, (guildId) => client.guilds.cache.get(guildId));
 let purgeTimer: NodeJS.Timeout | undefined;
 
