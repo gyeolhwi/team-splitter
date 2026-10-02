@@ -77,11 +77,13 @@ async function handleAssembleButton(interaction: ButtonInteraction<'cached'>, se
   }
 
   await interaction.deferUpdate();
-  const outcome = await service.assemble(interaction.guild, session);
+  const outcome = await service.assemble(interaction.guild, session.id);
   if (!outcome.ok) return followUpError(interaction, outcome.reason);
 
   await interaction.editReply({
-    content: `${interaction.message.content}\n\n${formatAssemble(session, outcome)}`,
+    content: fit((withHistory) =>
+      withHistory ? `${interaction.message.content}\n\n${formatAssemble(session, outcome)}` : formatAssemble(session, outcome),
+    ),
     components: [],
     allowedMentions: NO_PINGS,
   });
@@ -99,7 +101,7 @@ async function handleAssembleCommand(interaction: ChatInputCommandInteraction<'c
   }
 
   await interaction.deferReply();
-  const outcome = await service.assemble(interaction.guild, session);
+  const outcome = await service.assemble(interaction.guild, session.id);
   if (!outcome.ok) {
     await interaction.deleteReply().catch(() => undefined);
     return followUpError(interaction, outcome.reason);
@@ -129,27 +131,47 @@ export function parseMentions(text: string): Set<string> {
   return new Set([...text.matchAll(/<@!?(\d+)>/g)].map((m) => m[1]!));
 }
 
+/** 디스코드 메시지 최대 길이 */
+const MAX_CONTENT = 2000;
+
 const mentions = (ids: readonly string[]) => ids.map((id) => `<@${id}>`).join(' ');
 
+/** 인원이 많아 2000자를 넘으면 멘션 목록을 빼고 인원 수만 보여준다. */
+function fit(build: (withMembers: boolean) => string): string {
+  const full = build(true);
+  return full.length <= MAX_CONTENT ? full : build(false);
+}
+
 function formatDraft(session: Session, unassigned: string[]): string {
-  const lines = [`🎲 **팀 편성 결과** · <#${session.lobbyId}>`, ''];
-  session.teams.forEach((team, i) => lines.push(`**${i + 1}팀** (${team.length}명) ${mentions(team)}`));
-  if (unassigned.length > 0) lines.push(`**미지정** (${unassigned.length}명) ${mentions(unassigned)}`);
-  lines.push('', `<@${session.hostId}>님이 **split team**을 누르면 팀 채널로 옮겨요. 다시 섞으려면 명령을 다시 쳐 주세요.`);
-  return lines.join('\n');
+  return fit((withMembers) => {
+    const list = (ids: string[]) => (withMembers ? ` ${mentions(ids)}` : '');
+    const lines = [`🎲 **팀 편성 결과** · <#${session.lobbyId}>`, ''];
+    session.teams.forEach((team, i) => lines.push(`**${i + 1}팀** (${team.length}명)${list(team)}`));
+    if (unassigned.length > 0) lines.push(`**미지정** (${unassigned.length}명)${list(unassigned)}`);
+    lines.push('', `<@${session.hostId}>님이 **split team**을 누르면 팀 채널로 옮겨요. 다시 섞으려면 명령을 다시 쳐 주세요.`);
+    return lines.join('\n');
+  });
 }
 
 function formatSplit(session: Session, notMoved: string[]): string {
-  const lines = [`🚌 **분배 완료** · <#${session.lobbyId}>`, ''];
-  session.teams.forEach((team, i) => lines.push(`<#${session.teamChannelIds[i]}> ${mentions(team)}`));
-  if (notMoved.length > 0) lines.push('', `로비에 없어서 옮기지 못한 사람: ${mentions(notMoved)}`);
-  lines.push('', '게임이 끝나면 **assemble**을 눌러 로비로 모아요.');
-  return lines.join('\n');
+  return fit((withMembers) => {
+    const list = (ids: string[]) => (withMembers ? ` ${mentions(ids)}` : ` ${ids.length}명`);
+    const lines = [`🚌 **분배 완료** · <#${session.lobbyId}>`, ''];
+    session.teams.forEach((team, i) => lines.push(`<#${session.teamChannelIds[i]}>${list(team)}`));
+    if (notMoved.length > 0) lines.push('', `로비에 없어서 옮기지 못한 사람:${list(notMoved)}`);
+    lines.push('', '게임이 끝나면 **assemble**을 눌러 로비로 모아요.');
+    return lines.join('\n');
+  });
 }
 
 function formatAssemble(session: Session, outcome: { moved: number; failed: number; keptChannels: number }): string {
-  const lines = [`✅ **모으기 완료** · <#${session.lobbyId}>로 ${outcome.moved}명을 옮기고 판을 끝냈어요.`];
-  if (outcome.failed > 0) lines.push(`옮기지 못한 사람 ${outcome.failed}명이 있어요.`);
-  if (outcome.keptChannels > 0) lines.push(`사람이 남아 있는 팀 채널 ${outcome.keptChannels}개는 지우지 않았어요.`);
-  return lines.join('\n');
+  if (outcome.keptChannels === 0) {
+    const lines = [`✅ **모으기 완료** · <#${session.lobbyId}>로 ${outcome.moved}명을 옮기고 판을 끝냈어요.`];
+    if (outcome.failed > 0) lines.push(`옮기지 못한 사람 ${outcome.failed}명이 있어요.`);
+    return lines.join('\n');
+  }
+  return [
+    `⚠️ **일부만 모았어요** · <#${session.lobbyId}>로 ${outcome.moved}명을 옮겼어요.`,
+    `사람이 남아 있는 팀 채널 ${outcome.keptChannels}개는 지우지 않았어요. 비면 자동으로 정리되고, \`/team assemble\`로 다시 모을 수도 있어요.`,
+  ].join('\n');
 }

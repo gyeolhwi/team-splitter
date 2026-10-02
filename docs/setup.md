@@ -147,6 +147,7 @@ git clone https://github.com/gyeolhwi/team-splitter.git
 cd team-splitter
 cp .env.example .env
 nano .env   # DISCORD_APPLICATION_ID, DISCORD_BOT_TOKEN 입력 후 저장
+mkdir -p data   # 꼭 먼저 만든다. 없으면 Docker가 root 소유로 만들어 봇이 DB를 못 만든다
 docker compose up -d --build
 ```
 
@@ -222,4 +223,5 @@ npm run register       # = node --env-file=.env.local scripts/register-commands.
 | 이동 실패 "음성 미접속" (40032) | 대상이 음성에 없음 | 정상 동작. 결과 메시지에 표시됨 |
 | SSH 접속이 안 됨 | 키 권한, 사용자 이름, IP 오류 | `chmod 400` 확인, 사용자는 `ubuntu`, 고정 IP로 접속. 급하면 콘솔의 브라우저 SSH 사용 |
 | 서버 전체가 느리거나 컨테이너가 죽음 | 메모리 부족 | `docker stats`로 확인. 부족하면 스냅샷으로 8GB 플랜으로 옮긴다 |
+| 로그에 `unable to open database file`, 재시작 반복 | `data` 폴더가 root 소유 | `sudo chown -R 1000:1000 data` 후 `docker compose up -d` |
 | 디스크 부족 | 오래된 Docker 이미지가 쌓임 | `docker image prune -a` |
