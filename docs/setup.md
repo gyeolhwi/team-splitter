@@ -139,47 +139,7 @@ mkdir -p ~/services   # 프로젝트는 전부 이 아래에 둔다
 
 ## 4. 서버에 봇 배포
 
-### 4-1. 처음 배포
-
-```bash
-cd ~/services
-git clone https://github.com/gyeolhwi/team-splitter.git
-cd team-splitter
-cp .env.example .env
-nano .env   # DISCORD_APPLICATION_ID, DISCORD_BOT_TOKEN 입력 후 저장
-mkdir -p data   # 꼭 먼저 만든다. 없으면 Docker가 root 소유로 만들어 봇이 DB를 못 만든다
-docker compose up -d --build
-```
-
-확인:
-
-```bash
-docker compose ps        # STATUS가 Up 이면 실행 중
-docker compose logs -f   # "로그인 완료" 로그가 보이면 정상. Ctrl+C로 빠져나온다
-```
-
-- `compose.yml`에 `restart: unless-stopped`가 있어서 봇이 죽거나 서버가 재부팅돼도 자동으로 다시 켜진다.
-- 진행 중인 판은 `./data/team-splitter.db`에 저장된다. 이 폴더는 지우지 않는다.
-
-### 4-2. 업데이트 (코드가 바뀌었을 때)
-
-```bash
-cd ~/services/team-splitter
-git pull
-docker compose up -d --build
-```
-
-- 재시작하는 몇 초 동안은 봇이 응답하지 않는다. 진행 중인 판은 유지된다.
-- `.env`를 바꿨을 때도 `docker compose up -d`를 다시 실행해야 반영된다.
-
-### 4-3. 자주 쓰는 명령
-
-| 하고 싶은 것 | 명령 |
-|---|---|
-| 로그 보기 | `docker compose logs -f --tail 100` |
-| 재시작 | `docker compose restart` |
-| 멈추기 | `docker compose down` |
-| 서버 전체 메모리 확인 | `docker stats --no-stream` |
+SSH 접속, git clone, `.env` 업로드, docker compose 실행, 업데이트, 되돌리기까지 **`docs/deploy.md`** 런북을 그대로 따라 한다.
 
 ---
 

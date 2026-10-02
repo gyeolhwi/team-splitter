@@ -23,6 +23,11 @@ documents:
     title: 봇 페르소나 (배근이)
     summary: 셔틀봇 안내 메시지의 캐릭터 설정과 말투 규칙. 문구는 src/messages.ts, 이미지는 assets/persona/.
     keywords: [페르소나, 말투, 배근이, 캐릭터, 안내 문구, messages, 이미지, 프로필]
+
+  - path: docs/deploy.md
+    title: 서버 배포 런북
+    summary: 내 맥에서 ssh aws-ubuntu-1로 Lightsail 서버에 접속해 git clone, .env 업로드, data 폴더 준비, docker compose 실행, 로그 확인까지 그대로 따라 하는 배포 절차. 업데이트, 되돌리기, 자주 쓰는 명령 포함.
+    keywords: [배포, 런북, SSH, aws-ubuntu-1, git clone, scp, .env, docker compose, 업데이트, git pull, 로그, 되돌리기, 재시작]
 ```
 
 문서를 고치면 해당 문서의 프론트매터와 이 색인을 같이 갱신한다.
