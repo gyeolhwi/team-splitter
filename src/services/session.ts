@@ -5,10 +5,11 @@ import type { Session, SessionStore } from '../store/db.js';
 
 /** 팀 채널이 전부 빈 뒤 다시 확인하기까지 기다리는 시간 */
 const CLEANUP_DELAY_MS = 60_000;
-/** split 하지 않은 편성 결과를 지우는 기준 */
-const DRAFT_TTL_MS = 24 * 60 * 60_000;
+/** 편성 결과(split team 버튼)가 유효한 시간 */
+const DRAFT_TTL_MS = 10 * 60_000;
 
-export type Failure = { ok: false; reason: string };
+/** stale: 버튼이 더 이상 쓸모없어서 메시지에서 지워도 되는 경우 */
+export type Failure = { ok: false; reason: string; stale?: boolean };
 
 export type GenerateOutcome = { ok: true; session: Session; unassigned: string[] } | Failure;
 export type SplitOutcome = { ok: true; session: Session; notMoved: string[] } | Failure;
@@ -33,6 +34,9 @@ export class SessionService {
     }
 
     const participantIds = lobby.members.filter((m) => !m.user.bot && !excludeIds.has(m.id)).map((m) => m.id);
+    if (participantIds.length < 2) {
+      return { ok: false, reason: '팀을 나누려면 음성채널에 2명 이상 있어야 해요.' };
+    }
     const result = generateTeams(participantIds, options);
     if (!result.ok) {
       return { ok: false, reason: `팀을 만들 인원이 부족해요. ${result.shortBy}명이 더 있어야 해요.` };
@@ -49,14 +53,18 @@ export class SessionService {
       status: 'draft',
       createdAt: Date.now(),
     };
+    // 같은 로비의 이전 편성 결과는 무효로 한다. 최신 결과만 split 할 수 있다.
+    this.store.deleteDraftsForLobby(guildId, lobby.id);
     this.store.createDraft(session);
     return { ok: true, session, unassigned: result.unassigned };
   }
 
   async split(guild: Guild, sessionId: string, userId: string): Promise<SplitOutcome> {
     const session = this.store.get(sessionId);
-    if (!session) return { ok: false, reason: '편성 결과가 만료됐어요. `/team generate`를 다시 해 주세요.' };
-    if (session.status === 'active') return { ok: false, reason: '이미 분배한 판이에요.' };
+    if (!session || (session.status === 'draft' && Date.now() - session.createdAt > DRAFT_TTL_MS)) {
+      return { ok: false, stale: true, reason: '만료됐거나 더 최신 편성이 있는 결과예요. `/team generate`를 다시 해 주세요.' };
+    }
+    if (session.status === 'active') return { ok: false, stale: true, reason: '이미 분배한 판이에요.' };
     if (session.hostId !== userId) return { ok: false, reason: '판을 연 사람만 분배할 수 있어요.' };
 
     const lobby = await fetchVoiceChannel(guild, session.lobbyId);

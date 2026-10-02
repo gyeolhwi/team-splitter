@@ -65,6 +65,17 @@ describe('SessionStore', () => {
     expect(store.activate('s1')).toBe(true);
   });
 
+  it('같은 로비의 draft 만 지우고 active 는 남긴다', () => {
+    draft('a', 'lobby1');
+    draft('b', 'lobby1');
+    draft('c', 'lobby2');
+    store.activate('a');
+    store.deleteDraftsForLobby('guild1', 'lobby1');
+    expect(store.get('a')?.status).toBe('active');
+    expect(store.get('b')).toBeUndefined();
+    expect(store.get('c')).toBeDefined();
+  });
+
   it('오래된 draft 만 지운다', () => {
     draft('old', 'lobby1', 100);
     draft('new', 'lobby2', 5000);

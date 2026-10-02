@@ -60,7 +60,10 @@ async function handleSplit(interaction: ButtonInteraction<'cached'>, service: Se
   await interaction.deferUpdate();
   const sessionId = interaction.customId.slice(SPLIT_PREFIX.length);
   const outcome = await service.split(interaction.guild, sessionId, interaction.user.id);
-  if (!outcome.ok) return followUpError(interaction, outcome.reason);
+  if (!outcome.ok) {
+    if (outcome.stale) await interaction.editReply({ components: [] });
+    return followUpError(interaction, outcome.reason);
+  }
 
   await interaction.editReply({
     content: formatSplit(outcome.session, outcome.notMoved),
@@ -71,7 +74,11 @@ async function handleSplit(interaction: ButtonInteraction<'cached'>, service: Se
 
 async function handleAssembleButton(interaction: ButtonInteraction<'cached'>, service: SessionService) {
   const session = service.getActive(interaction.customId.slice(ASSEMBLE_PREFIX.length));
-  if (!session) return replyError(interaction, '이미 끝난 판이에요.');
+  if (!session) {
+    // 끝난 판의 버튼은 누르는 순간 지운다.
+    await interaction.update({ components: [] });
+    return followUpError(interaction, '이미 끝난 판이에요.');
+  }
   if (!service.canAssemble(session, interaction.user.id)) {
     return replyError(interaction, '판을 연 사람이나 참가자만 모을 수 있어요.');
   }

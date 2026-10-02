@@ -126,6 +126,12 @@ export class SessionStore {
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   }
 
+  deleteDraftsForLobby(guildId: string, lobbyId: string): void {
+    this.db
+      .prepare(`DELETE FROM sessions WHERE status = 'draft' AND guild_id = ? AND lobby_id = ?`)
+      .run(guildId, lobbyId);
+  }
+
   /** olderThan 보다 먼저 만든 draft 를 지우고 지운 개수를 돌려준다. */
   deleteDraftsBefore(olderThan: number): number {
     return this.db.prepare(`DELETE FROM sessions WHERE status = 'draft' AND created_at < ?`).run(olderThan).changes;
