@@ -47,6 +47,7 @@ async function handleGenerate(interaction: ChatInputCommandInteraction<'cached'>
   const excludeIds = parseMentions(interaction.options.getString('non-target') ?? '');
 
   const outcome = service.generate(lobby, interaction.user.id, { team, number }, excludeIds);
+  log('generate', outcome.ok ? outcome.session.id : '-', `lobby=${lobby.id}`, outcome.ok ? 'ok' : outcome.reason);
   if (!outcome.ok) return replyError(interaction, outcome.reason);
 
   await interaction.reply({
@@ -60,6 +61,7 @@ async function handleSplit(interaction: ButtonInteraction<'cached'>, service: Se
   await interaction.deferUpdate();
   const sessionId = interaction.customId.slice(SPLIT_PREFIX.length);
   const outcome = await service.split(interaction.guild, sessionId, interaction.user.id);
+  log('split', sessionId, `message=${interaction.message.id}`, outcome.ok ? 'ok' : outcome.reason);
   if (!outcome.ok) {
     if (outcome.stale) await interaction.editReply({ components: [] });
     return followUpError(interaction, outcome.reason);
@@ -85,6 +87,7 @@ async function handleAssembleButton(interaction: ButtonInteraction<'cached'>, se
 
   await interaction.deferUpdate();
   const outcome = await service.assemble(interaction.guild, session.id);
+  log('assemble', session.id, outcome.ok ? `ok moved=${outcome.moved}` : outcome.reason);
   if (!outcome.ok) return followUpError(interaction, outcome.reason);
 
   await interaction.editReply({
@@ -109,11 +112,16 @@ async function handleAssembleCommand(interaction: ChatInputCommandInteraction<'c
 
   await interaction.deferReply();
   const outcome = await service.assemble(interaction.guild, session.id);
+  log('assemble', session.id, outcome.ok ? `ok moved=${outcome.moved}` : outcome.reason);
   if (!outcome.ok) {
     await interaction.deleteReply().catch(() => undefined);
     return followUpError(interaction, outcome.reason);
   }
   await interaction.editReply({ content: formatAssemble(outcome), allowedMentions: NO_PINGS });
+}
+
+function log(action: string, sessionId: string, ...details: string[]) {
+  console.log(`[${action} ${sessionId.slice(0, 8)}] ${details.join(' ')}`);
 }
 
 export async function replyError(interaction: RepliableInteraction, message: string) {
