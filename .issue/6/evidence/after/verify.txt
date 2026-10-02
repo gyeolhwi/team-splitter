@@ -1,0 +1,18 @@
+# after — 1a901b3 (2026-10-02 15:50)
+$ npm test
+ Test Files  3 passed (3)
+      Tests  16 passed (16)
+
+$ npm run typecheck
+OK (오류 0)
+
+$ npm run build
+discord
+domain
+index.js
+services
+store
+
+$ node --env-file=.env.local dist/index.js   (로그인 확인 후 Ctrl+C)
+로그인 완료: 셔틀봇#9144 (서버 1개)
+SIGINT 수신, 종료합니다.

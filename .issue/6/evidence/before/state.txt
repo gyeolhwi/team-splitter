@@ -1,0 +1,14 @@
+# before — ed81aa0 (2026-10-02 15:42)
+$ git ls-files
+.env.example
+.gitignore
+INDEX.md
+README.md
+docs/setup.md
+docs/spec.md
+docs/tech.md
+
+$ npm test
+npm error code ENOENT
+npm error syscall open
+npm error path /Users/gimgyeolhwi/Documents/dev/personal-projects/teamgenerate/.issue/worktrees/6-mvp-bot/package.json
