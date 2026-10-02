@@ -25,7 +25,7 @@ civil-war의 `docs/ops/discord-bot-setup.md`에서 **실제로 겪었던 문제*
 
 ## 1. 디스코드 앱과 봇 만들기
 
-[Discord Developer Portal](https://discord.com/developers/applications) → **New Application** → 이름: `Team Splitter`
+[Discord Developer Portal](https://discord.com/developers/applications) → **New Application** → 이름: `셔틀봇`
 
 ### General Information 탭
 
@@ -124,7 +124,7 @@ exit   # 다시 접속해야 sudo 없이 docker를 쓸 수 있다
 
 ```bash
 docker run --rm hello-world
-mkdir -p ~/apps   # 프로젝트는 전부 이 아래에 둔다
+mkdir -p ~/services   # 프로젝트는 전부 이 아래에 둔다
 ```
 
 ### 3-6. 자동 스냅샷 (권장)
@@ -142,7 +142,7 @@ mkdir -p ~/apps   # 프로젝트는 전부 이 아래에 둔다
 ### 4-1. 처음 배포
 
 ```bash
-cd ~/apps
+cd ~/services
 git clone https://github.com/gyeolhwi/team-splitter.git
 cd team-splitter
 cp .env.example .env
@@ -163,7 +163,7 @@ docker compose logs -f   # "로그인 완료" 로그가 보이면 정상. Ctrl+C
 ### 4-2. 업데이트 (코드가 바뀌었을 때)
 
 ```bash
-cd ~/apps/team-splitter
+cd ~/services/team-splitter
 git pull
 docker compose up -d --build
 ```

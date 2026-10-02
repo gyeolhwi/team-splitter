@@ -5,7 +5,7 @@ category: spec
 summary: 봇의 목적과 목표, 명령어(/team generate, /team assemble)와 버튼(split team, assemble), 팀 편성 규칙, 분배·모으기 동작, 꼬이지 않게 하는 안전장치, 알려진 제약을 정의한다.
 keywords: [목적, 목표, 기능, 명령어, /team generate, /team assemble, split team, assemble, 팀 편성, team, number, non-target, 미지정, 분배, 모으기, 자동 정리, 안전장치, 제약, 재시작]
 related_files: [src/discord/commands.ts, src/domain/team-generator.ts, src/services/session.ts]
-last_updated: 2026-10-01
+last_updated: 2026-10-02
 ---
 
 # 기능 명세
@@ -47,6 +47,13 @@ last_updated: 2026-10-01
 
 - 결과가 마음에 들지 않으면 명령을 다시 친다. 다시 섞기 버튼은 없다.
 - 음성채널에 없는 상태에서 치거나, 진행 중인 판의 팀 채널에서 치면 거절한다.
+
+### 메시지 공개 범위
+
+| 메시지 | 보이는 사람 |
+|---|---|
+| 편성 결과, 분배 결과, 모으기 결과 | 채널 전체. 참가자가 [assemble]을 누를 수 있어야 한다 |
+| 오류·거절 안내 | 명령을 친 사람만 (ephemeral) |
 
 ## 4. 팀 편성 규칙
 
