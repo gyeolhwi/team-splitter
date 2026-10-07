@@ -1,0 +1,32 @@
+## 등록된 명령
+18:    name: 'ping',
+24:    name: 'team',
+31:        name: 'generate',
+34:          { type: INTEGER, name: 'team', description: '팀 수', min_value: 1, max_value: 25 },
+35:          { type: INTEGER, name: 'number', description: '팀당 인원', min_value: 1, max_value: 25 },
+36:          { type: STRING, name: 'non-target', description: '뺄 사람 (@멘션을 이어서 입력)' },
+41:        name: 'assemble',
+
+## 타입 체크
+tsc --noEmit 통과
+
+## 테스트
+ Test Files  4 passed (4)
+      Tests  27 passed (27)
+
+## /ping 응답 샘플
+### 정상
+헉, 헉... (안경을 슥 치켜올리며) 배, 배근이 정상 운행 중이라능...! 언제든 불러 주시라능...!
+
+디스코드 연결 42ms · 명령 수신 85ms
+가동 시간 4일 2시간 5분
+저장소(DB) 정상
+
+### DB 이상 + 연결 느림
+야, 야바이...!! (식은땀 뻘뻘) 저, 정상이 아니라능...! 이상한 데가 있다능...
+- 저장소(DB)가 대답을 안 한다능... 진행 중인 판 기록을 못 읽는다능...! (울먹)
+- 디스코드 연결이 느리다능... 명령이 늦게 들어올 수 있다능...! (파들파들)
+
+디스코드 연결 1530ms · 명령 수신 1720ms
+가동 시간 42초
+저장소(DB) 이상
