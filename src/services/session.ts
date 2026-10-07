@@ -284,18 +284,24 @@ export class SessionService {
   /** 채널이 여전히 비어 있으면 그 채널만 지운다. 판의 마지막 팀 채널이었으면 판을 끝낸다. */
   private async cleanupIfStillEmpty(sessionId: string, channelId: string): Promise<void> {
     const session = this.getActive(sessionId);
-    if (!session?.teamChannelIds.includes(channelId) || this.busy.has(sessionId)) return;
+    if (!session?.teamChannelIds.includes(channelId)) return;
+    // 분배·모으기 중이면 끝난 뒤에 다시 확인한다. 그대로 버리면 채널이 남는다.
+    if (this.busy.has(sessionId)) return this.scheduleCleanup(sessionId, channelId);
     const guild = this.getGuild(session.guildId);
     if (!guild?.available || !isChannelEmpty(guild, channelId)) return;
 
     const channel = guild.channels.cache.get(channelId);
     if (channel) {
+      // 지우는 동안 모으기가 같은 채널을 건드리지 못하게 막는다.
+      this.busy.add(sessionId);
       try {
         await channel.delete();
       } catch (error) {
         // 지우지 못한 채널은 판에 남겨 두고 다음에 비었을 때 다시 시도한다.
         console.error(`[cleanup ${sessionId}] ${channelId} 삭제 실패`, error);
         return;
+      } finally {
+        this.busy.delete(sessionId);
       }
     }
     const remaining = this.store.removeTeamChannel(sessionId, channelId);

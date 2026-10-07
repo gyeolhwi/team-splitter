@@ -101,6 +101,17 @@ describe('빈 팀 채널 정리', () => {
     expect(store.get('s1')!.teamChannelIds).toEqual(['t1', 't2']);
   });
 
+  it('채널을 지우는 동안에는 모으기가 끼어들지 못한다', async () => {
+    let finishDelete!: () => void;
+    channels.get('t1')!.delete.mockImplementationOnce(() => new Promise<undefined>((r) => (finishDelete = () => r(undefined))));
+    leave('t1', 0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(await service.assemble(guild, 's1')).toMatchObject({ ok: false });
+    finishDelete();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.get('s1')!.teamChannelIds).toEqual(['t2']);
+  });
+
   it('재시작 점검 때 빈 채널과 사라진 채널을 정리한다', async () => {
     channels.get('t1')!.members.size = 0;
     channels.delete('t2');
