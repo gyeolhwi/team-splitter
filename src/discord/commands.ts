@@ -17,6 +17,11 @@ import type { AssembleOutcome, SessionService } from '../services/session.js';
 const SPLIT_PREFIX = 'split:';
 const ASSEMBLE_PREFIX = 'assemble:';
 
+/** 슬래시 명령과 옵션 이름. scripts/register-commands.mjs 와 맞춘다. */
+const COMMAND = { ping: 'ping', generate: '팀짜기', assemble: '모으기' } as const;
+const OPTION = { team: '팀수', number: '인원수', exclude: '제외' } as const;
+const BUTTON = { split: '팀 분배', assemble: '모으기' } as const;
+
 /** 멘션은 이름으로만 보이고 알림은 가지 않게 한다. */
 const NO_PINGS = { parse: [] } as const;
 
@@ -26,14 +31,10 @@ export async function handleInteraction(interaction: Interaction, service: Sessi
     return;
   }
 
-  if (interaction.isChatInputCommand() && interaction.commandName === 'ping') {
-    return handlePing(interaction, service);
-  }
-
-  if (interaction.isChatInputCommand() && interaction.commandName === 'team') {
-    const sub = interaction.options.getSubcommand();
-    if (sub === 'generate') return handleGenerate(interaction, service);
-    if (sub === 'assemble') return handleAssembleCommand(interaction, service);
+  if (interaction.isChatInputCommand()) {
+    if (interaction.commandName === COMMAND.ping) return handlePing(interaction, service);
+    if (interaction.commandName === COMMAND.generate) return handleGenerate(interaction, service);
+    if (interaction.commandName === COMMAND.assemble) return handleAssembleCommand(interaction, service);
     return;
   }
 
@@ -60,17 +61,17 @@ async function handleGenerate(interaction: ChatInputCommandInteraction<'cached'>
   if (!lobby) return replyError(interaction, ERR.notInVoice);
   if (lobby.type !== ChannelType.GuildVoice) return replyError(interaction, ERR.notGuildVoice);
 
-  const team = interaction.options.getInteger('team') ?? undefined;
-  const number = interaction.options.getInteger('number') ?? undefined;
-  const excludeIds = parseMentions(interaction.options.getString('non-target') ?? '');
+  const team = interaction.options.getInteger(OPTION.team) ?? undefined;
+  const number = interaction.options.getInteger(OPTION.number) ?? undefined;
+  const excludeIds = parseMentions(interaction.options.getString(OPTION.exclude) ?? '');
 
   const outcome = service.generate(lobby, interaction.user.id, { team, number }, excludeIds);
   log('generate', outcome.ok ? outcome.session.id : '-', `lobby=${lobby.id}`, outcome.ok ? 'ok' : outcome.reason);
   if (!outcome.ok) return replyError(interaction, outcome.reason);
 
   await interaction.reply({
-    content: formatDraft(outcome.session, outcome.unassigned),
-    components: [buttonRow(SPLIT_PREFIX + outcome.session.id, 'split team', ButtonStyle.Primary)],
+    content: formatDraft(outcome.session, outcome.unassigned, outcome.excluded),
+    components: [buttonRow(SPLIT_PREFIX + outcome.session.id, BUTTON.split, ButtonStyle.Primary)],
     allowedMentions: NO_PINGS,
   });
 }
@@ -87,7 +88,7 @@ async function handleSplit(interaction: ButtonInteraction<'cached'>, service: Se
 
   await interaction.editReply({
     content: formatSplit(outcome.session, outcome.notMoved),
-    components: [buttonRow(ASSEMBLE_PREFIX + outcome.session.id, 'assemble', ButtonStyle.Success)],
+    components: [buttonRow(ASSEMBLE_PREFIX + outcome.session.id, BUTTON.assemble, ButtonStyle.Success)],
     allowedMentions: NO_PINGS,
   });
 }
@@ -188,12 +189,13 @@ export function formatPing(health: HealthInput): string {
   return lines.join('\n');
 }
 
-function formatDraft(session: Session, unassigned: string[]): string {
+export function formatDraft(session: Session, unassigned: string[], excluded: string[]): string {
   return fit((withMembers) => {
     const list = (ids: string[]) => (withMembers ? ` ${mentions(ids)}` : '');
     const lines = [MSG.draftTitle(session.lobbyId), ''];
     session.teams.forEach((team, i) => lines.push(`${MSG.team(i, team.length)}${list(team)}`));
     if (unassigned.length > 0) lines.push(`${MSG.unassigned(unassigned.length)}${list(unassigned)}`);
+    if (excluded.length > 0) lines.push(`${MSG.excluded(excluded.length)}${list(excluded)}`);
     lines.push('', MSG.draftFooter(session.hostId));
     return lines.join('\n');
   });

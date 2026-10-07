@@ -122,6 +122,15 @@ export class SessionStore {
     this.db.prepare('UPDATE sessions SET team_channel_ids = ? WHERE id = ?').run(JSON.stringify(channelIds), id);
   }
 
+  /** 팀 채널 목록에서 하나를 빼고 남은 목록을 돌려준다. 판이 없으면 undefined. */
+  removeTeamChannel(id: string, channelId: string): string[] | undefined {
+    const session = this.get(id);
+    if (!session) return undefined;
+    const remaining = session.teamChannelIds.filter((c) => c !== channelId);
+    this.setTeamChannels(id, remaining);
+    return remaining;
+  }
+
   delete(id: string): void {
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   }

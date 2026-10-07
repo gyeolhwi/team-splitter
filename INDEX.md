@@ -6,8 +6,8 @@ team-splitter 문서 색인. 질문을 받으면 이 파일을 먼저 읽고, `k
 documents:
   - path: docs/spec.md
     title: 기능 명세
-    summary: 봇의 목적과 목표, 명령어(/team generate, /team assemble)와 버튼(split team, assemble), 팀 편성 규칙, 분배·모으기 동작, 꼬이지 않게 하는 안전장치, 알려진 제약을 정의한다.
-    keywords: [목적, 목표, 기능, 명령어, /team generate, /team assemble, split team, assemble, 팀 편성, team, number, non-target, 미지정, 분배, 모으기, 자동 정리, 안전장치, 제약, 재시작]
+    summary: 봇의 목적과 목표, 명령어(/팀짜기, /모으기, /ping)와 버튼(팀 분배, 모으기), 팀 편성 규칙, 분배·모으기 동작, 꼬이지 않게 하는 안전장치, 알려진 제약을 정의한다.
+    keywords: [목적, 목표, 기능, 명령어, /팀짜기, /모으기, /ping, 상태 점검, 팀 분배, 모으기 버튼, 팀 편성, 팀수, 인원수, 제외, 미지정, 분배, 모으기, 자동 정리, 안전장치, 제약, 재시작]
 
   - path: docs/tech.md
     title: 기술 구성

@@ -29,7 +29,7 @@ last_updated: 2026-10-07
 ### 명령 처리 흐름
 
 1. 봇이 시작하면 디스코드 게이트웨이에 연결해 계속 유지한다.
-2. `/team generate` 같은 명령과 버튼 클릭이 `interactionCreate` 이벤트로 들어온다. Interactions Endpoint URL과 서명 검증이 필요 없다.
+2. `/팀짜기` 같은 명령과 버튼 클릭이 `interactionCreate` 이벤트로 들어온다. Interactions Endpoint URL과 서명 검증이 필요 없다.
 3. 3초 안에 "처리 중"(`deferReply` / `deferUpdate`)으로 응답하고, 작업이 끝나면 결과로 메시지를 수정한다.
 
 ### 음성 접속자를 알아내는 방법
@@ -41,9 +41,9 @@ last_updated: 2026-10-07
 ### 정리 작업
 
 - `voiceStateUpdate` 이벤트로 **팀 채널에서 사람이 나가는 순간**을 안다.
-- 어떤 판의 팀 채널이 **전부 비면 1분 기다렸다가 다시 확인**하고, 여전히 비어 있으면 채널을 지우고 판을 끝낸다. 잠깐 나갔다 들어오는 경우에 채널이 사라지지 않게 하려는 유예 시간이다.
+- 팀 채널이 **비면 그 채널만 1분 기다렸다가 다시 확인**하고, 여전히 비어 있으면 그 채널을 지운다. 판의 팀 채널이 모두 지워지면 판을 끝낸다. 타이머는 채널 ID별로 둔다. 잠깐 나갔다 들어오는 경우에 채널이 사라지지 않게 하려는 유예 시간이다.
 - 봇이 재시작되면(배포, 서버 재부팅) 시작할 때 진행 중인 판을 SQLite에서 읽어 같은 기준으로 한 번 점검한다.
-- split team 전 편성 결과(draft)는 10분 동안만 유효하다. 같은 로비에서 다시 편성하면 이전 draft를 지우고, 1시간마다 만료된 draft를 지운다.
+- 팀 분배 전 편성 결과(draft)는 10분 동안만 유효하다. 같은 로비에서 다시 편성하면 이전 draft를 지우고, 1시간마다 만료된 draft를 지운다.
 
 ## 3. 사용하는 디스코드 API
 
@@ -81,7 +81,7 @@ discord.js 메서드로 호출한다. 괄호 안은 실제 REST 엔드포인트�
 | `sessions` | `id`, `guild_id`, `lobby_id`, `host_id`, `participant_ids`(JSON), `teams`(JSON), `team_channel_ids`(JSON), `status`(`draft`/`active`), `created_at` |
 
 - 디스코드 ID는 모두 문자열(`TEXT`)로 저장한다.
-- `(guild_id, lobby_id)`에 진행 중(`active`)인 판은 하나만 있도록 부분 유니크 인덱스를 건다. 동시에 split team을 눌러도 한쪽만 성공한다.
+- `(guild_id, lobby_id)`에 진행 중(`active`)인 판은 하나만 있도록 부분 유니크 인덱스를 건다. 동시에 [팀 분배]를 눌러도 한쪽만 성공한다.
 - 편성 결과(draft)도 저장한다. 봇이 재시작돼도 결과 메시지의 버튼이 동작하게 하기 위해서다.
 - 끝난 판은 지운다. 기록을 남기지 않는다.
 
@@ -107,11 +107,11 @@ team-splitter/
 │   ├── domain/team-generator.ts # 팀 편성 (순수 함수)
 │   ├── domain/health.ts         # /ping 상태 판정 (순수 함수)
 │   ├── messages.ts              # 사용자에게 보이는 문구 전부 (말투: docs/persona.md)
-│   ├── services/session.ts      # generate, split team, assemble, 자동 정리
+│   ├── services/session.ts      # 편성, 팀 분배, 모으기, 빈 채널 자동 정리
 │   └── store/db.ts              # SQLite (sessions)
 ├── scripts/register-commands.mjs # 슬래시 명령 글로벌 등록
 ├── assets/persona/              # 봇 캐릭터 이미지, 상황별 이미지 프롬프트
-├── tests/                       # team-generator, db, health 단위 테스트
+├── tests/                       # team-generator, db, health, session 단위 테스트
 ├── Dockerfile
 ├── compose.yml                  # restart: unless-stopped, ./data 볼륨
 └── .env.example

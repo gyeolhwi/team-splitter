@@ -24,6 +24,14 @@ afterEach(() => {
 });
 
 describe('SessionStore', () => {
+  it('팀 채널 목록에서 하나를 빼고 남은 목록을 돌려준다', () => {
+    draft('s1');
+    store.setTeamChannels('s1', ['c1', 'c2']);
+    expect(store.removeTeamChannel('s1', 'c1')).toEqual(['c2']);
+    expect(store.get('s1')!.teamChannelIds).toEqual(['c2']);
+    expect(store.removeTeamChannel('없음', 'c1')).toBeUndefined();
+  });
+
   it('열려 있으면 정상, 닫히면 이상으로 점검된다', () => {
     expect(store.isHealthy()).toBe(true);
     const closed = new SessionStore(':memory:');
