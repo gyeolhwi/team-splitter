@@ -5,7 +5,7 @@ category: ops
 summary: 디스코드 Developer Portal에서 앱·봇 등록, Installation 설정, AWS Lightsail 서버 준비(인스턴스·고정 IP·Docker), Docker Compose 배포와 업데이트, 슬래시 명령 등록, 서버 초대까지 순서대로 정리한 체크리스트와 트러블슈팅.
 keywords: [봇 등록, 셋업, Developer Portal, 봇 토큰, Application ID, Public Bot, Installation, 초대 링크, 권한, AWS, Lightsail, 고정 IP, SSH, Docker, Docker Compose, 배포, 업데이트, 로그, 스냅샷, 환경변수, 명령 등록, 트러블슈팅]
 related_files: [.env.example, scripts/register-commands.mjs, Dockerfile, compose.yml]
-last_updated: 2026-10-02
+last_updated: 2026-10-07
 ---
 
 # 봇 등록·배포 가이드
@@ -164,7 +164,7 @@ npm run register       # = node --env-file=.env.local scripts/register-commands.
 1. 2번의 초대 링크로 서버에 추가한다. 서버 관리 권한이 있는 사람만 추가할 수 있다.
 2. 서버 설정 → 멤버에서 봇이 있는지 확인한다. 봇이 실행 중이면 **온라인**으로 보인다.
 3. 팀 채널을 만들 카테고리에서 봇 역할에 **채널 관리 권한이 막혀 있지 않은지** 확인한다.
-4. 음성채널에 2명 이상 들어간 상태에서 `/team generate` → **[split team]** → `/team assemble` 순서로 확인한다.
+4. 음성채널에 2명 이상 들어간 상태에서 `/팀짜기` → **[팀 분배]** → `/모으기` 순서로 확인한다.
 
 > 로컬에서 먼저 확인하고 싶으면 내 맥에서 `npm run dev`로 봇을 띄운다. **서버의 봇과 동시에 켜면 명령이 두 쪽으로 들어가니** 서버 쪽을 `docker compose down`으로 멈추고 테스트한다.
 
