@@ -70,7 +70,7 @@ async function handleGenerate(interaction: ChatInputCommandInteraction<'cached'>
   if (!outcome.ok) return replyError(interaction, outcome.reason);
 
   await interaction.reply({
-    content: formatDraft(outcome.session, outcome.unassigned, outcome.excluded),
+    content: formatDraft(outcome.session, lobby.name, outcome.unassigned, outcome.excluded),
     components: [buttonRow(SPLIT_PREFIX + outcome.session.id, BUTTON.split, ButtonStyle.Primary)],
     allowedMentions: NO_PINGS,
   });
@@ -87,7 +87,7 @@ async function handleSplit(interaction: ButtonInteraction<'cached'>, service: Se
   }
 
   await interaction.editReply({
-    content: formatSplit(outcome.session, outcome.notMoved),
+    content: formatSplit(outcome.session, outcome.lobbyName, outcome.notMoved),
     components: [buttonRow(ASSEMBLE_PREFIX + outcome.session.id, BUTTON.assemble, ButtonStyle.Success)],
     allowedMentions: NO_PINGS,
   });
@@ -189,10 +189,10 @@ export function formatPing(health: HealthInput): string {
   return lines.join('\n');
 }
 
-export function formatDraft(session: Session, unassigned: string[], excluded: string[]): string {
+export function formatDraft(session: Session, lobbyName: string, unassigned: string[], excluded: string[]): string {
   return fit((withMembers) => {
     const list = (ids: string[]) => (withMembers ? ` ${mentions(ids)}` : '');
-    const lines = [MSG.draftTitle(session.lobbyId), ''];
+    const lines = [MSG.draftTitle(lobbyName), ''];
     session.teams.forEach((team, i) => lines.push(`${MSG.team(i, team.length)}${list(team)}`));
     if (unassigned.length > 0) lines.push(`${MSG.unassigned(unassigned.length)}${list(unassigned)}`);
     if (excluded.length > 0) lines.push(`${MSG.excluded(excluded.length)}${list(excluded)}`);
@@ -201,11 +201,14 @@ export function formatDraft(session: Session, unassigned: string[], excluded: st
   });
 }
 
-function formatSplit(session: Session, notMoved: string[]): string {
+export function formatSplit(session: Session, lobbyName: string, notMoved: string[]): string {
   return fit((withMembers) => {
     const list = (ids: string[]) => (withMembers ? ` ${mentions(ids)}` : ` ${ids.length}명`);
-    const lines = [MSG.splitTitle(session.lobbyId), ''];
-    session.teams.forEach((team, i) => lines.push(`<#${session.teamChannelIds[i]}>${list(team)}`));
+    const lines = [MSG.splitTitle(lobbyName), ''];
+    // 팀 채널은 모으기 뒤 지워지므로 채널 멘션 대신 팀 이름으로 적는다.
+    session.teams.forEach((team, i) =>
+      lines.push(`${MSG.team(i, team.length)}${withMembers ? ` ${mentions(team)}` : ''}`),
+    );
     if (notMoved.length > 0) lines.push('', `${MSG.notMoved}${list(notMoved)}`);
     lines.push('', MSG.splitFooter);
     return lines.join('\n');
@@ -213,7 +216,7 @@ function formatSplit(session: Session, notMoved: string[]): string {
 }
 
 function formatAssemble(outcome: Extract<AssembleOutcome, { ok: true }>): string {
-  const where = MSG.lobby(outcome.lobbyId, outcome.lobbyRecreated);
+  const where = MSG.lobby(outcome.lobbyName, outcome.lobbyRecreated);
   if (outcome.keptChannels > 0) return MSG.assembledPartial(where, outcome.moved, outcome.keptChannels);
   const lines = [MSG.assembled(where, outcome.moved)];
   if (outcome.failed > 0) lines.push(MSG.assembleFailed(outcome.failed));
