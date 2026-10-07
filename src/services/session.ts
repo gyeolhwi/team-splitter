@@ -28,6 +28,10 @@ export class SessionService {
     private readonly getGuild: (guildId: string) => Guild | undefined,
   ) {}
 
+  isStoreHealthy(): boolean {
+    return this.store.isHealthy();
+  }
+
   generate(lobby: VoiceBasedChannel, hostId: string, options: TeamOptions, excludeIds: Set<string>): GenerateOutcome {
     const guildId = lobby.guild.id;
     if (this.store.listActive(guildId).some((s) => s.teamChannelIds.includes(lobby.id))) {

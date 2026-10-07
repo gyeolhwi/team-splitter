@@ -15,6 +15,12 @@ const GUILD_CONTEXT = 0;
 
 const commands = [
   {
+    name: 'ping',
+    description: '배근이가 정상 운행 중인지 확인해요',
+    integration_types: [GUILD_INSTALL],
+    contexts: [GUILD_CONTEXT],
+  },
+  {
     name: 'team',
     description: '음성채널 인원으로 팀을 나누고 모아요',
     integration_types: [GUILD_INSTALL],

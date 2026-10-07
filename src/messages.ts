@@ -54,4 +54,15 @@ export const MSG = {
   assembledPartial: (where: string, moved: number, kept: number) =>
     `야, 야바이...! 일부만 모셨다능...! ${where}로 ${moved}명 모셔 왔다능...\n` +
     `(식은땀 뻘뻘) 사람이 남아 있는 팀 채널 ${kept}개는 안 지웠다능...! 비면 알아서 치워 두겠다능... \`/team assemble\`로 다시 불러 주셔도 된다능...!`,
+
+  pingOk: '헉, 헉... (안경을 슥 치켜올리며) 배, 배근이 정상 운행 중이라능...! 언제든 불러 주시라능...!',
+  pingBad: '야, 야바이...!! (식은땀 뻘뻘) 저, 정상이 아니라능...! 이상한 데가 있다능...',
+  pingProblem: {
+    db: '저장소(DB)가 대답을 안 한다능... 진행 중인 판 기록을 못 읽는다능...! (울먹)',
+    gateway: '디스코드 연결이 느리다능... 명령이 늦게 들어올 수 있다능...! (파들파들)',
+  },
+  pingGateway: (ms: number) => (ms < 0 ? '디스코드 연결 측정 중' : `디스코드 연결 ${ms}ms`),
+  pingLatency: (ms: number) => `명령 수신 ${ms}ms`,
+  pingUptime: (uptime: string) => `가동 시간 ${uptime}`,
+  pingDb: (ok: boolean) => `저장소(DB) ${ok ? '정상' : '이상'}`,
 };

@@ -9,6 +9,7 @@ import {
   type Interaction,
   type RepliableInteraction,
 } from 'discord.js';
+import { findProblems, formatUptime, type HealthInput } from '../domain/health.js';
 import { ERR, MSG } from '../messages.js';
 import type { Session } from '../store/db.js';
 import type { AssembleOutcome, SessionService } from '../services/session.js';
@@ -25,6 +26,10 @@ export async function handleInteraction(interaction: Interaction, service: Sessi
     return;
   }
 
+  if (interaction.isChatInputCommand() && interaction.commandName === 'ping') {
+    return handlePing(interaction, service);
+  }
+
   if (interaction.isChatInputCommand() && interaction.commandName === 'team') {
     const sub = interaction.options.getSubcommand();
     if (sub === 'generate') return handleGenerate(interaction, service);
@@ -36,6 +41,18 @@ export async function handleInteraction(interaction: Interaction, service: Sessi
     if (interaction.customId.startsWith(SPLIT_PREFIX)) return handleSplit(interaction, service);
     if (interaction.customId.startsWith(ASSEMBLE_PREFIX)) return handleAssembleButton(interaction, service);
   }
+}
+
+async function handlePing(interaction: ChatInputCommandInteraction<'cached'>, service: SessionService) {
+  const health: HealthInput = {
+    gatewayMs: Math.round(interaction.client.ws.ping),
+    latencyMs: Math.max(0, Date.now() - interaction.createdTimestamp),
+    uptimeMs: interaction.client.uptime,
+    dbOk: service.isStoreHealthy(),
+  };
+  const problems = findProblems(health);
+  log('ping', '-', problems.length === 0 ? 'ok' : problems.join(','));
+  await interaction.reply({ content: formatPing(health) });
 }
 
 async function handleGenerate(interaction: ChatInputCommandInteraction<'cached'>, service: SessionService) {
@@ -156,6 +173,19 @@ const mentions = (ids: readonly string[]) => ids.map((id) => `<@${id}>`).join(' 
 function fit(build: (withMembers: boolean) => string): string {
   const full = build(true);
   return full.length <= MAX_CONTENT ? full : build(false);
+}
+
+export function formatPing(health: HealthInput): string {
+  const problems = findProblems(health);
+  const lines = [problems.length === 0 ? MSG.pingOk : MSG.pingBad];
+  for (const problem of problems) lines.push(`- ${MSG.pingProblem[problem]}`);
+  lines.push(
+    '',
+    `${MSG.pingGateway(health.gatewayMs)} · ${MSG.pingLatency(health.latencyMs)}`,
+    MSG.pingUptime(formatUptime(health.uptimeMs)),
+    MSG.pingDb(health.dbOk),
+  );
+  return lines.join('\n');
 }
 
 function formatDraft(session: Session, unassigned: string[]): string {
