@@ -1,5 +1,6 @@
 // 사용자에게 보이는 문구를 한곳에 모은다. 말투 기준은 docs/persona.md (배근이).
 // 팀원·채널·사유 같은 핵심 정보는 문장 안에 그대로 남긴다.
+// 채널은 <#ID> 멘션 대신 이름으로 적는다. 채널이 지워지면 멘션이 '알 수 없음'으로 바뀌기 때문이다.
 
 /** 멤버 목록에서 봇 이름 밑에 보이는 상태 문구 */
 export const STATUS = '미미쨩은 뭐하고 있을까..보고싶다능..⭐️';
@@ -33,9 +34,11 @@ export const ERR = {
   unknown: '고, 고멘나사이...!! 무, 문제가 생겼다능...! (식은땀 뻘뻘) 자, 잠시 후에 다시 불러 주시라능...!',
 };
 
+const channelName = (name: string) => `🔊 ${name}`;
+
 /** 결과 메시지. 채널 전체에 보인다. */
 export const MSG = {
-  draftTitle: (lobbyId: string) => `히, 히이익?! (파들파들) 파, 팀 편성 퀘스트 결과라능...! · <#${lobbyId}>`,
+  draftTitle: (lobbyName: string) => `히, 히이익?! (파들파들) 파, 팀 편성 퀘스트 결과라능...! · ${channelName(lobbyName)}`,
   draftFooter: (hostId: string) =>
     `(안경을 슥 치켜올리며) <@${hostId}>님이 **팀 분배**를 누르시면 바, 바로 팀 채널로 모셔다 드리겠다능...!\n` +
     '마, 마음에 안 드시면 명령을 다시 불러 주시라능... 새로 짜 오겠다능...! (식은땀)',
@@ -43,12 +46,12 @@ export const MSG = {
   unassigned: (size: number) => `**미지정** (${size}명)`,
   excluded: (size: number) => `**제외** (${size}명)`,
 
-  splitTitle: (lobbyId: string) => `에, 에엣?! 부, 분배 완료했다능...! (헉헉) · <#${lobbyId}>`,
+  splitTitle: (lobbyName: string) => `에, 에엣?! 부, 분배 완료했다능...! (헉헉) · ${channelName(lobbyName)}`,
   notMoved: '로비에 안 계셔서 못 모셔 간 분:',
   splitFooter: '게, 게임 끝나시면 **모으기** 눌러 주시라능...! 다 모셔 오겠다능...! (호다닥)',
 
-  lobby: (lobbyId: string, recreated: boolean) =>
-    recreated ? `원래 로비가 없어져서 새로 만든 <#${lobbyId}>` : `<#${lobbyId}>`,
+  lobby: (lobbyName: string, recreated: boolean) =>
+    recreated ? `원래 로비가 없어져서 새로 만든 ${channelName(lobbyName)}` : channelName(lobbyName),
   assembled: (where: string, moved: number) =>
     `허억... 허억... (땀을 닦으며) 모, 모으기 완료라능...! ${where}로 ${moved}명 모셔 왔고 판은 끝났다능...!`,
   assembleFailed: (failed: number) => `${failed}명은 못 모셔 왔다능... 고, 고멘나사이...! (울먹)`,

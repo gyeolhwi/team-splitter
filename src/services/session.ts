@@ -13,9 +13,9 @@ const DRAFT_TTL_MS = 10 * 60_000;
 export type Failure = { ok: false; reason: string; stale?: boolean };
 
 export type GenerateOutcome = { ok: true; session: Session; unassigned: string[]; excluded: string[] } | Failure;
-export type SplitOutcome = { ok: true; session: Session; notMoved: string[] } | Failure;
+export type SplitOutcome = { ok: true; session: Session; lobbyName: string; notMoved: string[] } | Failure;
 export type AssembleOutcome =
-  | { ok: true; lobbyId: string; lobbyRecreated: boolean; moved: number; failed: number; keptChannels: number }
+  | { ok: true; lobbyName: string; lobbyRecreated: boolean; moved: number; failed: number; keptChannels: number }
   | Failure;
 
 export class SessionService {
@@ -137,7 +137,7 @@ export class SessionService {
     const activeSession: Session = { ...session, status: 'active', teamChannelIds };
     // 아무도 옮기지 못한 채널은 나가는 이벤트가 없으니 여기서 정리를 예약한다.
     this.scheduleEmptyChannels(guild, activeSession);
-    return { ok: true, session: activeSession, notMoved };
+    return { ok: true, session: activeSession, lobbyName: lobby.name, notMoved };
   }
 
   /** /team assemble 을 친 사람이 속한 진행 중인 판을 찾는다. */
@@ -214,7 +214,7 @@ export class SessionService {
       this.store.setTeamChannels(session.id, keptChannelIds);
       this.scheduleEmptyChannels(guild, { ...session, teamChannelIds: keptChannelIds });
     }
-    return { ok: true, lobbyId: lobby.id, lobbyRecreated, moved, failed, keptChannels: keptChannelIds.length };
+    return { ok: true, lobbyName: lobby.name, lobbyRecreated, moved, failed, keptChannels: keptChannelIds.length };
   }
 
   /** 로비가 지워졌으면 팀 채널과 같은 카테고리(= 원래 로비의 카테고리)에 새로 만든다. */
