@@ -12,7 +12,7 @@ const DRAFT_TTL_MS = 10 * 60_000;
 /** stale: 버튼이 더 이상 쓸모없어서 메시지에서 지워도 되는 경우 */
 export type Failure = { ok: false; reason: string; stale?: boolean };
 
-export type GenerateOutcome = { ok: true; session: Session; unassigned: string[] } | Failure;
+export type GenerateOutcome = { ok: true; session: Session; unassigned: string[]; excluded: string[] } | Failure;
 export type SplitOutcome = { ok: true; session: Session; notMoved: string[] } | Failure;
 export type AssembleOutcome =
   | { ok: true; lobbyId: string; lobbyRecreated: boolean; moved: number; failed: number; keptChannels: number }
@@ -61,7 +61,7 @@ export class SessionService {
     // 같은 로비의 이전 편성 결과는 무효로 한다. 최신 결과만 split 할 수 있다.
     this.store.deleteDraftsForLobby(guildId, lobby.id);
     this.store.createDraft(session);
-    return { ok: true, session, unassigned: result.unassigned };
+    return { ok: true, session, unassigned: result.unassigned, excluded: [...excludeIds] };
   }
 
   async split(guild: Guild, sessionId: string, userId: string): Promise<SplitOutcome> {

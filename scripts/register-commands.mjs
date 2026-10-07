@@ -7,7 +7,6 @@ if (!appId || !token) {
   process.exit(1);
 }
 
-const SUB_COMMAND = 1;
 const STRING = 3;
 const INTEGER = 4;
 const GUILD_INSTALL = 0;
@@ -21,27 +20,21 @@ const commands = [
     contexts: [GUILD_CONTEXT],
   },
   {
-    name: 'team',
-    description: '음성채널 인원으로 팀을 나누고 모아요',
+    name: '팀짜기',
+    description: '지금 있는 음성채널 인원으로 랜덤 팀을 편성해요',
     integration_types: [GUILD_INSTALL],
     contexts: [GUILD_CONTEXT],
     options: [
-      {
-        type: SUB_COMMAND,
-        name: 'generate',
-        description: '지금 있는 음성채널 인원으로 랜덤 팀을 편성해요',
-        options: [
-          { type: INTEGER, name: 'team', description: '팀 수', min_value: 1, max_value: 25 },
-          { type: INTEGER, name: 'number', description: '팀당 인원', min_value: 1, max_value: 25 },
-          { type: STRING, name: 'non-target', description: '뺄 사람 (@멘션을 이어서 입력)' },
-        ],
-      },
-      {
-        type: SUB_COMMAND,
-        name: 'assemble',
-        description: '팀 채널 인원을 로비로 모으고 판을 끝내요',
-      },
+      { type: INTEGER, name: '팀수', description: '팀 수', min_value: 1, max_value: 25 },
+      { type: INTEGER, name: '인원수', description: '팀당 인원', min_value: 1, max_value: 25 },
+      { type: STRING, name: '제외', description: '뺄 사람 (@멘션을 이어서 입력)' },
     ],
+  },
+  {
+    name: '모으기',
+    description: '팀 채널 인원을 로비로 모으고 판을 끝내요',
+    integration_types: [GUILD_INSTALL],
+    contexts: [GUILD_CONTEXT],
   },
 ];
 
