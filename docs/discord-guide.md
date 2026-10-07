@@ -5,7 +5,7 @@ category: setup
 summary: 디스코드에 붙여넣는 셔틀봇(배근이) 문구 모음. 이용안내 채널 게시글, 개발자 포털 일반 정보 설명(400자). 배근이 페르소나 말투.
 keywords: [이용안내, 안내 채널, 매뉴얼, 개발자 포털, 설명, 자기소개, 페르소나, 배근이]
 related_files: [docs/persona.md, src/messages.ts, assets/persona/avatar-1024.jpg]
-last_updated: 2026-10-02
+last_updated: 2026-10-07
 ---
 
 # 디스코드 안내 문구
@@ -28,6 +28,8 @@ last_updated: 2026-10-02
 ② 채팅창에 `/team generate` 입력
 ③ 편성 결과 확인 후, 판을 연 분이 `split team` 버튼 선택 → 팀 채널 생성·이동
 ④ 게임이 끝나면 `assemble` 버튼 또는 `/team assemble` → 로비로 집합, 팀 채널 삭제
+
+:satellite: 제가 멀쩡한지 궁금하시면 `/ping` 불러 주시라능... 대답이 없으면 쓰러진 거라능...! (파들파들)
 
 ## :gear: 옵션 (`/team generate` 뒤에 붙인다능)
 
@@ -67,6 +69,7 @@ last_updated: 2026-10-02
 /team generate → 팀 편성
 [split team] → 팀 채널로 이동
 [assemble] → 로비로 집합
+/ping → 배근이 상태 확인
 
 • 팀 수·팀당 인원 지정
 • 관전자 제외 (non-target)

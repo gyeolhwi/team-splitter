@@ -24,6 +24,13 @@ afterEach(() => {
 });
 
 describe('SessionStore', () => {
+  it('열려 있으면 정상, 닫히면 이상으로 점검된다', () => {
+    expect(store.isHealthy()).toBe(true);
+    const closed = new SessionStore(':memory:');
+    closed.close();
+    expect(closed.isHealthy()).toBe(false);
+  });
+
   it('draft 를 저장하고 그대로 읽는다', () => {
     draft('s1');
     expect(store.get('s1')).toMatchObject({

@@ -137,6 +137,15 @@ export class SessionStore {
     return this.db.prepare(`DELETE FROM sessions WHERE status = 'draft' AND created_at < ?`).run(olderThan).changes;
   }
 
+  /** 간단한 쿼리가 성공하면 true. /ping 상태 점검용 */
+  isHealthy(): boolean {
+    try {
+      return this.db.prepare('SELECT 1 AS ok').get() !== undefined;
+    } catch {
+      return false;
+    }
+  }
+
   close(): void {
     this.db.close();
   }
