@@ -4,7 +4,7 @@ import { generateTeams, type TeamOptions } from '../domain/team-generator.js';
 import { ERR } from '../messages.js';
 import type { Session, SessionStore } from '../store/db.js';
 
-/** 팀 채널이 전부 빈 뒤 다시 확인하기까지 기다리는 시간 */
+/** 팀 채널이 빈 뒤 다시 확인하기까지 기다리는 시간 */
 const CLEANUP_DELAY_MS = 60_000;
 /** 편성 결과(split team 버튼)가 유효한 시간 */
 const DRAFT_TTL_MS = 10 * 60_000;
@@ -19,6 +19,7 @@ export type AssembleOutcome =
   | Failure;
 
 export class SessionService {
+  /** 팀 채널 ID → 그 채널을 지울지 다시 확인할 타이머 */
   private readonly cleanupTimers = new Map<string, NodeJS.Timeout>();
   /** split·assemble 이 진행 중인 판. 진행 중에 다른 쪽이 끼어들지 못하게 한다. */
   private readonly busy = new Set<string>();
@@ -134,8 +135,8 @@ export class SessionService {
     await Promise.all(moves);
 
     const activeSession: Session = { ...session, status: 'active', teamChannelIds };
-    // 아무도 옮기지 못했으면 나가는 이벤트가 없으니 여기서 정리를 예약한다.
-    if (allTeamChannelsEmpty(guild, activeSession)) this.scheduleCleanup(session.id);
+    // 아무도 옮기지 못한 채널은 나가는 이벤트가 없으니 여기서 정리를 예약한다.
+    this.scheduleEmptyChannels(guild, activeSession);
     return { ok: true, session: activeSession, notMoved };
   }
 
@@ -181,7 +182,7 @@ export class SessionService {
       lobby = await this.recreateLobby(guild, session);
       if (!lobby) return { ok: false, reason: ERR.lobbyRecreateFailed };
     }
-    this.cancelCleanup(session.id);
+    this.cancelCleanup(session);
 
     let moved = 0;
     let failed = 0;
@@ -211,8 +212,7 @@ export class SessionService {
     } else {
       // 남은 채널은 판에 붙여 두고 비면 자동 정리로 지운다.
       this.store.setTeamChannels(session.id, keptChannelIds);
-      const remaining = { ...session, teamChannelIds: keptChannelIds };
-      if (allTeamChannelsEmpty(guild, remaining)) this.scheduleCleanup(session.id);
+      this.scheduleEmptyChannels(guild, { ...session, teamChannelIds: keptChannelIds });
     }
     return { ok: true, lobbyId: lobby.id, lobbyRecreated, moved, failed, keptChannels: keptChannelIds.length };
   }
@@ -228,13 +228,12 @@ export class SessionService {
     }
   }
 
-  /** 팀 채널에서 누가 나갔을 때 호출. 판의 팀 채널이 전부 비면 1분 뒤 다시 확인한다. */
+  /** 팀 채널에서 누가 나갔을 때 호출. 그 채널이 비면 1분 뒤 다시 확인한다. */
   onVoiceStateUpdate(oldState: VoiceState): void {
-    if (!oldState.channelId) return;
-    const session = this.store
-      .listActive(oldState.guild.id)
-      .find((s) => s.teamChannelIds.includes(oldState.channelId!));
-    if (session && allTeamChannelsEmpty(oldState.guild, session)) this.scheduleCleanup(session.id);
+    const channelId = oldState.channelId;
+    if (!channelId) return;
+    const session = this.store.listActive(oldState.guild.id).find((s) => s.teamChannelIds.includes(channelId));
+    if (session && isChannelEmpty(oldState.guild, channelId)) this.scheduleCleanup(session.id, channelId);
   }
 
   /** 봇이 시작할 때 진행 중인 판을 같은 기준으로 한 번 점검한다. */
@@ -248,7 +247,7 @@ export class SessionService {
       }
       // 장애로 잠깐 못 쓰는 서버는 채널 정보가 비어 보이니 건너뛴다.
       if (!guild.available) continue;
-      if (allTeamChannelsEmpty(guild, session)) this.scheduleCleanup(session.id);
+      this.scheduleEmptyChannels(guild, session);
     }
   }
 
@@ -257,32 +256,55 @@ export class SessionService {
     if (removed > 0) console.log(`오래된 편성 결과 ${removed}개 삭제`);
   }
 
-  /** 이미 예약돼 있으면 처음부터 다시 1분을 센다. */
-  private scheduleCleanup(sessionId: string): void {
-    this.cancelCleanup(sessionId);
-    const timer = setTimeout(() => {
-      this.cleanupTimers.delete(sessionId);
-      this.cleanupIfStillEmpty(sessionId).catch((error) => console.error(`[cleanup ${sessionId}] 실패`, error));
-    }, CLEANUP_DELAY_MS);
-    this.cleanupTimers.set(sessionId, timer);
-  }
-
-  private cancelCleanup(sessionId: string): void {
-    clearTimeout(this.cleanupTimers.get(sessionId));
-    this.cleanupTimers.delete(sessionId);
-  }
-
-  private async cleanupIfStillEmpty(sessionId: string): Promise<void> {
-    const session = this.getActive(sessionId);
-    if (!session || this.busy.has(sessionId)) return;
-    const guild = this.getGuild(session.guildId);
-    if (!guild?.available || !allTeamChannelsEmpty(guild, session)) return;
-
-    this.store.delete(session.id);
+  private scheduleEmptyChannels(guild: Guild, session: Session): void {
     for (const channelId of session.teamChannelIds) {
-      await guild.channels.cache.get(channelId)?.delete().catch(() => undefined);
+      if (isChannelEmpty(guild, channelId)) this.scheduleCleanup(session.id, channelId);
     }
-    console.log(`[cleanup ${session.id}] 빈 팀 채널 정리, 판 종료`);
+  }
+
+  /** 이미 예약돼 있으면 처음부터 다시 1분을 센다. */
+  private scheduleCleanup(sessionId: string, channelId: string): void {
+    clearTimeout(this.cleanupTimers.get(channelId));
+    const timer = setTimeout(() => {
+      this.cleanupTimers.delete(channelId);
+      this.cleanupIfStillEmpty(sessionId, channelId).catch((error) =>
+        console.error(`[cleanup ${sessionId}] ${channelId} 실패`, error),
+      );
+    }, CLEANUP_DELAY_MS);
+    this.cleanupTimers.set(channelId, timer);
+  }
+
+  private cancelCleanup(session: Session): void {
+    for (const channelId of session.teamChannelIds) {
+      clearTimeout(this.cleanupTimers.get(channelId));
+      this.cleanupTimers.delete(channelId);
+    }
+  }
+
+  /** 채널이 여전히 비어 있으면 그 채널만 지운다. 판의 마지막 팀 채널이었으면 판을 끝낸다. */
+  private async cleanupIfStillEmpty(sessionId: string, channelId: string): Promise<void> {
+    const session = this.getActive(sessionId);
+    if (!session?.teamChannelIds.includes(channelId) || this.busy.has(sessionId)) return;
+    const guild = this.getGuild(session.guildId);
+    if (!guild?.available || !isChannelEmpty(guild, channelId)) return;
+
+    const channel = guild.channels.cache.get(channelId);
+    if (channel) {
+      try {
+        await channel.delete();
+      } catch (error) {
+        // 지우지 못한 채널은 판에 남겨 두고 다음에 비었을 때 다시 시도한다.
+        console.error(`[cleanup ${sessionId}] ${channelId} 삭제 실패`, error);
+        return;
+      }
+    }
+    const remaining = this.store.removeTeamChannel(sessionId, channelId);
+    if (remaining?.length === 0) {
+      this.store.delete(sessionId);
+      console.log(`[cleanup ${sessionId}] 팀 채널이 모두 정리되어 판 종료`);
+    } else {
+      console.log(`[cleanup ${sessionId}] 빈 팀 채널 ${channelId} 정리, 남은 채널 ${remaining?.length ?? 0}개`);
+    }
   }
 
   stop(): void {
@@ -291,11 +313,10 @@ export class SessionService {
   }
 }
 
-function allTeamChannelsEmpty(guild: Guild, session: Session): boolean {
-  return session.teamChannelIds.every((id) => {
-    const channel = guild.channels.cache.get(id);
-    return !channel?.isVoiceBased() || channel.members.size === 0;
-  });
+/** 채널이 없어졌거나 아무도 없으면 비어 있는 것으로 본다. */
+function isChannelEmpty(guild: Guild, channelId: string): boolean {
+  const channel = guild.channels.cache.get(channelId);
+  return !channel?.isVoiceBased() || channel.members.size === 0;
 }
 
 async function fetchVoiceChannel(guild: Guild, channelId: string): Promise<VoiceBasedChannel | undefined> {
