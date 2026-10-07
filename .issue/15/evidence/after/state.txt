@@ -1,0 +1,33 @@
+## 등록된 명령
+17:    name: 'ping',
+23:    name: '팀짜기',
+28:      { type: INTEGER, name: '팀수', description: '팀 수', min_value: 1, max_value: 25 },
+29:      { type: INTEGER, name: '인원수', description: '팀당 인원', min_value: 1, max_value: 25 },
+30:      { type: STRING, name: '제외', description: '뺄 사람 (@멘션을 이어서 입력)' },
+34:    name: '모으기',
+
+## 타입 체크
+tsc --noEmit 통과
+
+## 테스트
+ ✓ tests/commands.test.ts > formatDraft > 제외한 사람을 미지정과 따로 보여준다 0ms
+ ✓ tests/commands.test.ts > formatDraft > 제외한 사람이 없으면 제외 줄이 없다 0ms
+ ✓ tests/session.test.ts > 빈 팀 채널 정리 > 한 채널이 비면 1분 뒤 그 채널만 지우고 판은 유지한다 5ms
+ ✓ tests/session.test.ts > 빈 팀 채널 정리 > 1분 안에 다시 들어오면 지우지 않는다 1ms
+ ✓ tests/session.test.ts > 빈 팀 채널 정리 > 남은 채널까지 모두 지우면 판을 끝낸다 1ms
+ ✓ tests/session.test.ts > 빈 팀 채널 정리 > 사람이 남아 있으면 나가는 이벤트가 와도 예약하지 않는다 0ms
+ ✓ tests/session.test.ts > 빈 팀 채널 정리 > 삭제에 실패하면 판에 남겨 둔다 1ms
+ ✓ tests/session.test.ts > 빈 팀 채널 정리 > 재시작 점검 때 빈 채널과 사라진 채널을 정리한다 1ms
+ Test Files  5 passed (5)
+      Tests  37 passed (37)
+
+## 편성 결과 샘플 (/팀짜기 팀수:2 제외:@관전자1 @관전자2)
+히, 히이익?! (파들파들) 파, 팀 편성 퀘스트 결과라능...! · <#로비ID>
+
+**1팀** (2명) <@A> <@B>
+**2팀** (2명) <@C> <@D>
+**미지정** (1명) <@E>
+**제외** (2명) <@관전자1> <@관전자2>
+
+(안경을 슥 치켜올리며) <@방장>님이 **팀 분배**를 누르시면 바, 바로 팀 채널로 모셔다 드리겠다능...!
+마, 마음에 안 드시면 명령을 다시 불러 주시라능... 새로 짜 오겠다능...! (식은땀)

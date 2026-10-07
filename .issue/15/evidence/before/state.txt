@@ -1,0 +1,12 @@
+## 등록된 명령
+18:    name: 'ping',
+24:    name: 'team',
+31:        name: 'generate',
+34:          { type: INTEGER, name: 'team', description: '팀 수', min_value: 1, max_value: 25 },
+35:          { type: INTEGER, name: 'number', description: '팀당 인원', min_value: 1, max_value: 25 },
+36:          { type: STRING, name: 'non-target', description: '뺄 사람 (@멘션을 이어서 입력)' },
+41:        name: 'assemble',
+
+## 테스트
+ Test Files  4 passed (4)
+      Tests  27 passed (27)
