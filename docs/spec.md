@@ -2,10 +2,10 @@
 id: spec
 title: 기능 명세
 category: spec
-summary: 봇의 목적과 목표, 명령어(/team generate, /team assemble)와 버튼(split team, assemble), 팀 편성 규칙, 분배·모으기 동작, 꼬이지 않게 하는 안전장치, 알려진 제약을 정의한다.
-keywords: [목적, 목표, 기능, 명령어, /team generate, /team assemble, split team, assemble, 팀 편성, team, number, non-target, 미지정, 분배, 모으기, 자동 정리, 안전장치, 제약, 재시작]
+summary: 봇의 목적과 목표, 명령어(/team generate, /team assemble, /ping)와 버튼(split team, assemble), 팀 편성 규칙, 분배·모으기 동작, 꼬이지 않게 하는 안전장치, 알려진 제약을 정의한다.
+keywords: [목적, 목표, 기능, 명령어, /team generate, /team assemble, /ping, 상태 점검, split team, assemble, 팀 편성, team, number, non-target, 미지정, 분배, 모으기, 자동 정리, 안전장치, 제약, 재시작]
 related_files: [src/discord/commands.ts, src/domain/team-generator.ts, src/services/session.ts]
-last_updated: 2026-10-02
+last_updated: 2026-10-07
 ---
 
 # 기능 명세
@@ -36,6 +36,7 @@ last_updated: 2026-10-02
 | `/team generate` | 누구나 | 내가 있는 음성채널(로비) 인원으로 바로 편성하고 결과를 보여준다 |
 | **[split team]** | 판을 연 사람 | 팀 채널을 만들고 팀원을 분배한다 |
 | **[assemble]** / `/team assemble` | 판을 연 사람, 참가자 | 로비로 모으고 팀 채널을 삭제한 뒤 판을 끝낸다 |
+| `/ping` | 누구나 | 봇이 정상 동작하는지 점검 결과를 보여준다 |
 
 ### `/team generate` 옵션
 
@@ -51,11 +52,23 @@ last_updated: 2026-10-02
 - 편성 대상이 2명 미만이면 거절한다.
 - 음성채널에 없는 상태에서 치거나, 진행 중인 판의 팀 채널에서 치면 거절한다.
 
+### `/ping` 점검 항목
+
+| 항목 | 내용 | 이상으로 보는 기준 |
+|---|---|---|
+| 디스코드 연결 | 게이트웨이 하트비트 지연(ms). 켜진 직후에는 "측정 중" | 1000ms 초과 |
+| 명령 수신 | 명령을 친 순간부터 봇이 받기까지(ms) | 표시만 한다 |
+| 가동 시간 | 마지막 재시작 이후 시간 | 표시만 한다 |
+| 저장소(DB) | SQLite에 간단한 쿼리가 되는지 | 쿼리 실패 |
+
+- 이상이 없으면 "정상 운행 중", 있으면 어느 항목이 이상한지 먼저 적는다.
+- 봇이 꺼져 있으면 응답 자체가 없다(디스코드가 "애플리케이션이 응답하지 않았습니다"를 띄운다).
+
 ### 메시지 공개 범위
 
 | 메시지 | 보이는 사람 |
 |---|---|
-| 편성 결과, 분배 결과, 모으기 결과 | 채널 전체. 참가자가 [assemble]을 누를 수 있어야 한다 |
+| 편성 결과, 분배 결과, 모으기 결과, `/ping` 점검 결과 | 채널 전체. 참가자가 [assemble]을 누를 수 있어야 한다 |
 | 오류·거절 안내 | 명령을 친 사람만 (ephemeral) |
 
 ## 4. 팀 편성 규칙

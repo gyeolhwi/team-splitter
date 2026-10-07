@@ -5,7 +5,7 @@ category: tech
 summary: AWS Lightsail 서울 서버 한 대에 Docker로 상시 실행하는 구성. discord.js 게이트웨이 연결로 명령과 음성 상태를 받는 방식, 자동 정리, 사용하는 디스코드 API, 봇 권한, SQLite 저장, 환경변수, 폴더 구조, 서버 비용을 정리한다.
 keywords: [기술 스택, AWS, Lightsail, Docker, Docker Compose, 상시 실행, discord.js, 게이트웨이, voice_states, voiceStateUpdate, 자동 정리, REST API, 권한, Intents, SQLite, 저장, 환경변수, 폴더 구조, 비용]
 related_files: [src/index.ts, src/discord/commands.ts, src/services/session.ts, src/store/db.ts, scripts/register-commands.mjs, Dockerfile, compose.yml]
-last_updated: 2026-10-02
+last_updated: 2026-10-07
 ---
 
 # 기술 구성
@@ -105,12 +105,13 @@ team-splitter/
 │   ├── index.ts                 # 봇 시작: 게이트웨이 연결, 이벤트 등록, 시작 시 점검
 │   ├── discord/commands.ts      # 슬래시 명령·버튼 처리
 │   ├── domain/team-generator.ts # 팀 편성 (순수 함수)
+│   ├── domain/health.ts         # /ping 상태 판정 (순수 함수)
 │   ├── messages.ts              # 사용자에게 보이는 문구 전부 (말투: docs/persona.md)
 │   ├── services/session.ts      # generate, split team, assemble, 자동 정리
 │   └── store/db.ts              # SQLite (sessions)
 ├── scripts/register-commands.mjs # 슬래시 명령 글로벌 등록
 ├── assets/persona/              # 봇 캐릭터 이미지, 상황별 이미지 프롬프트
-├── tests/                       # team-generator, db 단위 테스트
+├── tests/                       # team-generator, db, health 단위 테스트
 ├── Dockerfile
 ├── compose.yml                  # restart: unless-stopped, ./data 볼륨
 └── .env.example
