@@ -16,11 +16,12 @@ import type { AssembleOutcome, SessionService } from '../services/session.js';
 
 const SPLIT_PREFIX = 'split:';
 const ASSEMBLE_PREFIX = 'assemble:';
+const END_PREFIX = 'end:';
 
 /** 슬래시 명령과 옵션 이름. scripts/register-commands.mjs 와 맞춘다. */
 const COMMAND = { ping: 'ping', generate: '팀짜기', assemble: '모으기' } as const;
 const OPTION = { team: '팀수', number: '인원수', exclude: '제외' } as const;
-const BUTTON = { split: '팀 분배', assemble: '모으기' } as const;
+const BUTTON = { split: '팀 분배', assemble: '모으기', end: '종료하기' } as const;
 
 /** 멘션은 이름으로만 보이고 알림은 가지 않게 한다. */
 const NO_PINGS = { parse: [] } as const;
@@ -41,6 +42,7 @@ export async function handleInteraction(interaction: Interaction, service: Sessi
   if (interaction.isButton()) {
     if (interaction.customId.startsWith(SPLIT_PREFIX)) return handleSplit(interaction, service);
     if (interaction.customId.startsWith(ASSEMBLE_PREFIX)) return handleAssembleButton(interaction, service);
+    if (interaction.customId.startsWith(END_PREFIX)) return handleEndButton(interaction, service);
   }
 }
 
@@ -71,7 +73,7 @@ async function handleGenerate(interaction: ChatInputCommandInteraction<'cached'>
 
   await interaction.reply({
     content: formatDraft(outcome.session, lobby.name, outcome.unassigned, outcome.excluded),
-    components: [buttonRow(SPLIT_PREFIX + outcome.session.id, BUTTON.split, ButtonStyle.Primary)],
+    components: [buttonRow({ customId: SPLIT_PREFIX + outcome.session.id, label: BUTTON.split, style: ButtonStyle.Primary })],
     allowedMentions: NO_PINGS,
   });
 }
@@ -88,7 +90,12 @@ async function handleSplit(interaction: ButtonInteraction<'cached'>, service: Se
 
   await interaction.editReply({
     content: formatSplit(outcome.session, outcome.lobbyName, outcome.notMoved),
-    components: [buttonRow(ASSEMBLE_PREFIX + outcome.session.id, BUTTON.assemble, ButtonStyle.Success)],
+    components: [
+      buttonRow(
+        { customId: ASSEMBLE_PREFIX + outcome.session.id, label: BUTTON.assemble, style: ButtonStyle.Success },
+        { customId: END_PREFIX + outcome.session.id, label: BUTTON.end, style: ButtonStyle.Secondary },
+      ),
+    ],
     allowedMentions: NO_PINGS,
   });
 }
@@ -112,6 +119,32 @@ async function handleAssembleButton(interaction: ButtonInteraction<'cached'>, se
   await interaction.editReply({
     content: fit((withHistory) =>
       withHistory ? `${interaction.message.content}\n\n${formatAssemble(outcome)}` : formatAssemble(outcome),
+    ),
+    components: [],
+    allowedMentions: NO_PINGS,
+  });
+}
+
+async function handleEndButton(interaction: ButtonInteraction<'cached'>, service: SessionService) {
+  const session = service.getActive(interaction.customId.slice(END_PREFIX.length));
+  if (!session) {
+    await interaction.update({ components: [] });
+    return followUpError(interaction, ERR.ended);
+  }
+  if (!service.canAssemble(session, interaction.user.id)) {
+    return replyError(interaction, ERR.notMemberEnd);
+  }
+
+  await interaction.deferUpdate();
+  const outcome = await service.end(interaction.guild, session.id);
+  log('end', session.id, outcome.ok ? `ok kept=${outcome.keptChannels}` : outcome.reason);
+  if (!outcome.ok) return followUpError(interaction, outcome.reason);
+
+  await interaction.editReply({
+    content: fit((withHistory) =>
+      withHistory
+        ? `${interaction.message.content}\n\n${MSG.ended(outcome.keptChannels)}`
+        : MSG.ended(outcome.keptChannels),
     ),
     components: [],
     allowedMentions: NO_PINGS,
@@ -155,9 +188,11 @@ async function followUpError(interaction: RepliableInteraction, message: string)
   await interaction.followUp({ content: message, flags: MessageFlags.Ephemeral });
 }
 
-function buttonRow(customId: string, label: string, style: ButtonStyle) {
+function buttonRow(...buttons: { customId: string; label: string; style: ButtonStyle }[]) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(customId).setLabel(label).setStyle(style),
+    buttons.map(({ customId, label, style }) =>
+      new ButtonBuilder().setCustomId(customId).setLabel(label).setStyle(style),
+    ),
   );
 }
 
