@@ -2,7 +2,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import Database from 'better-sqlite3';
 
-export type SessionStatus = 'draft' | 'active';
+/** ended: 끝났지만 사람이 남은 팀 채널을 비면 지우려고 들고 있는 판 */
+export type SessionStatus = 'draft' | 'active' | 'ended';
 
 export interface Session {
   id: string;
@@ -37,9 +38,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   participant_ids  TEXT NOT NULL,
   teams            TEXT NOT NULL,
   team_channel_ids TEXT NOT NULL DEFAULT '[]',
-  status           TEXT NOT NULL CHECK (status IN ('draft', 'active')),
+  status           TEXT NOT NULL CHECK (status IN ('draft', 'active', 'ended')),
   created_at       INTEGER NOT NULL
 );
+`;
+
+const INDEXES = `
 CREATE UNIQUE INDEX IF NOT EXISTS sessions_one_active_per_lobby
   ON sessions (guild_id, lobby_id) WHERE status = 'active';
 `;
@@ -66,6 +70,23 @@ export class SessionStore {
     this.db = new Database(path);
     this.db.pragma('journal_mode = WAL');
     this.db.exec(SCHEMA);
+    this.migrateEndedStatus();
+    this.db.exec(INDEXES);
+  }
+
+  /** 'ended' 가 없던 CHECK 제약으로 만든 테이블을 새 제약으로 다시 만든다. SQLite 는 CHECK 를 고칠 수 없다. */
+  private migrateEndedStatus(): void {
+    const table = this.db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'sessions'`).get() as
+      | { sql: string }
+      | undefined;
+    if (!table || table.sql.includes("'ended'")) return;
+    this.db.transaction(() => {
+      this.db.exec('DROP INDEX IF EXISTS sessions_one_active_per_lobby');
+      this.db.exec('ALTER TABLE sessions RENAME TO sessions_old');
+      this.db.exec(SCHEMA);
+      this.db.exec('INSERT INTO sessions SELECT * FROM sessions_old');
+      this.db.exec('DROP TABLE sessions_old');
+    })();
   }
 
   createDraft(session: Omit<Session, 'status' | 'teamChannelIds'>): void {
@@ -95,6 +116,26 @@ export class SessionStore {
       ? this.db.prepare(`SELECT * FROM sessions WHERE status = 'active' AND guild_id = ?`).all(guildId)
       : this.db.prepare(`SELECT * FROM sessions WHERE status = 'active'`).all();
     return (rows as SessionRow[]).map(toSession);
+  }
+
+  findActiveForLobby(guildId: string, lobbyId: string): Session | undefined {
+    const row = this.db
+      .prepare(`SELECT * FROM sessions WHERE status = 'active' AND guild_id = ? AND lobby_id = ?`)
+      .get(guildId, lobbyId) as SessionRow | undefined;
+    return row && toSession(row);
+  }
+
+  /** 팀 채널을 들고 있는 판(active, ended) */
+  listWithChannels(guildId?: string): Session[] {
+    const rows = guildId
+      ? this.db.prepare(`SELECT * FROM sessions WHERE status IN ('active', 'ended') AND guild_id = ?`).all(guildId)
+      : this.db.prepare(`SELECT * FROM sessions WHERE status IN ('active', 'ended')`).all();
+    return (rows as SessionRow[]).map(toSession);
+  }
+
+  /** active 판을 ended 로 바꾼다. 이미 바뀌었으면 false. */
+  end(id: string): boolean {
+    return this.db.prepare(`UPDATE sessions SET status = 'ended' WHERE id = ? AND status = 'active'`).run(id).changes === 1;
   }
 
   /**

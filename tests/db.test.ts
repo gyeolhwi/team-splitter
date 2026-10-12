@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SessionStore } from '../src/store/db.js';
 
@@ -100,5 +104,49 @@ describe('SessionStore', () => {
     expect(store.get('old')).toBeUndefined();
     expect(store.get('new')).toBeDefined();
     expect(store.get('active-old')).toBeDefined();
+  });
+});
+
+describe('ended 상태', () => {
+  it('ended 판은 같은 로비의 새 active 를 막지 않는다', () => {
+    draft('s1');
+    store.activate('s1');
+    expect(store.end('s1')).toBe(true);
+    draft('s2');
+    expect(store.activate('s2')).toBe(true);
+    expect(store.findActiveForLobby('guild1', 'lobby1')?.id).toBe('s2');
+    expect(store.listWithChannels().map((s) => s.id).sort()).toEqual(['s1', 's2']);
+    expect(store.listActive().map((s) => s.id)).toEqual(['s2']);
+  });
+
+  it('active 가 아니면 end 는 false', () => {
+    draft('s1');
+    expect(store.end('s1')).toBe(false);
+  });
+
+  it('예전 스키마 DB 를 열면 데이터를 지키고 ended 를 쓸 수 있게 바꾼다', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'teamgen-'));
+    const path = join(dir, 'old.db');
+    const old = new Database(path);
+    old.exec(`
+      CREATE TABLE sessions (
+        id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, lobby_id TEXT NOT NULL, host_id TEXT NOT NULL,
+        participant_ids TEXT NOT NULL, teams TEXT NOT NULL, team_channel_ids TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL CHECK (status IN ('draft', 'active')), created_at INTEGER NOT NULL
+      );
+      CREATE UNIQUE INDEX sessions_one_active_per_lobby ON sessions (guild_id, lobby_id) WHERE status = 'active';
+      INSERT INTO sessions VALUES ('old', 'guild1', 'lobby1', 'host', '["a"]', '[["a"]]', '["c1"]', 'active', 1);
+    `);
+    old.close();
+
+    const migrated = new SessionStore(path);
+    try {
+      expect(migrated.get('old')).toMatchObject({ status: 'active', teamChannelIds: ['c1'] });
+      expect(migrated.end('old')).toBe(true);
+      expect(migrated.get('old')!.status).toBe('ended');
+    } finally {
+      migrated.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
