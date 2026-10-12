@@ -1,0 +1,15 @@
+## 기준 커밋
+96eef64 DOCS(docs): README 를 사용자 안내 형식으로 개편하고 이용안내 문구 갱신 - 2026-10-07
+
+## 현재 동작 (코드 근거)
+- src/services/session.ts split(): store.activate() 가 같은 로비 active 판 때문에 실패하면 ERR.lobbyBusy
+src/services/session.ts:80:      return { ok: false, reason: ERR.lobbyBusy };
+src/messages.ts:25:  lobbyBusy: '히이익?! 이, 이 로비에는 이미 진행 중인 판이 있다능...! 머, 먼저 모으기 해 주셔야 한다능... (울먹)',
+- 분배 메시지 버튼은 모으기 하나뿐
+23:const BUTTON = { split: '팀 분배', assemble: '모으기' } as const;
+- 판 상태는 draft/active 두 가지
+40:  status           TEXT NOT NULL CHECK (status IN ('draft', 'active')),
+
+## 테스트
+ Test Files  5 passed (5)
+      Tests  38 passed (38)

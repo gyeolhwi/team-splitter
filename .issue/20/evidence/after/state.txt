@@ -1,0 +1,35 @@
+## 기준 커밋
+0b709b9 DOCS(docs): 종료하기 버튼과 이전 판 자동 종료 안내 반영 - 2026-10-12
+bba8ee8 FEAT(session): 종료하기 버튼과 재분배 시 이전 판 자동 종료 추가 - 2026-10-12
+
+## 바뀐 동작 (코드 근거)
+- 재분배 시 이전 판 자동 종료
+86:    const previous = this.store.findActiveForLobby(session.guildId, session.lobbyId);
+- 종료하기 버튼
+19:const END_PREFIX = 'end:';
+24:const BUTTON = { split: '팀 분배', assemble: '모으기', end: '종료하기' } as const;
+- 판 상태 ended 추가 + 예전 DB 마이그레이션
+41:  status           TEXT NOT NULL CHECK (status IN ('draft', 'active', 'ended')),
+73:    this.migrateEndedStatus();
+78:  private migrateEndedStatus(): void {
+- 끝난 판의 남은 채널: 이름 뒤 (종료), 비면 즉시 삭제 / 진행 중 판은 1분 유지
+8:const CLEANUP_DELAY_MS = 60_000;
+12:const ENDED_SUFFIX = ' (종료)';
+330:    if (session.status === 'ended') this.runCleanup(session.id, channelId);
+
+## 테스트
+ Test Files  5 passed (5)
+      Tests  49 passed (49)
+
+## 추가된 테스트
+ ✓ tests/db.test.ts > ended 상태 > ended 판은 같은 로비의 새 active 를 막지 않는다 0ms
+ ✓ tests/db.test.ts > ended 상태 > active 가 아니면 end 는 false 0ms
+ ✓ tests/db.test.ts > ended 상태 > 예전 스키마 DB 를 열면 데이터를 지키고 ended 를 쓸 수 있게 바꾼다 4ms
+ ✓ tests/session.test.ts > 판 종료 > 빈 채널은 바로 지우고 사람이 남은 채널은 (종료)를 붙여 남긴다 1ms
+ ✓ tests/session.test.ts > 판 종료 > 모든 채널이 비어 있으면 판 기록까지 바로 지운다 0ms
+ ✓ tests/session.test.ts > 판 종료 > 끝난 판의 채널은 비는 즉시 지우고, 다 지우면 판 기록도 지운다 1ms
+ ✓ tests/session.test.ts > 판 종료 > 끝난 판은 모으기·종료 대상이 아니다 0ms
+ ✓ tests/session.test.ts > 판 종료 > 종료 때 지우지 못한 빈 채널은 다시 시도해 지운다 1ms
+ ✓ tests/session.test.ts > 판 종료 > 끝난 판의 오래된 분배 버튼은 지금 판을 건드리지 않는다 0ms
+ ✓ tests/session.test.ts > 판 종료 > 재시작 점검 때 끝난 판의 빈 채널은 바로 지운다 0ms
+ ✓ tests/session.test.ts > 판 종료 > 이전 판이 남은 로비에서 팀 분배를 누르면 이전 판을 끝내고 새 판을 시작한다 1ms
