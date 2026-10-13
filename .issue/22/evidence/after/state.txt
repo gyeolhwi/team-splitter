@@ -1,0 +1,27 @@
+## 기준 커밋
+4b4c54e DOCS(docs): 팀 채널에서 바로 다시 팀짜기 안내 반영 - 2026-10-13
+ce0a34a FIX(session): 팀 채널에서 팀짜기 허용하고 분배 시 그 채널의 이전 판 자동 종료 - 2026-10-13
+
+## 바뀐 동작 (코드 근거)
+- generate(): 팀 채널 차단 제거 — 팀 채널·(종료) 채널에서도 편성
+42:    const guildId = lobby.guild.id;
+43-    const participantIds = lobby.members.filter((m) => !m.user.bot && !excludeIds.has(m.id)).map((m) => m.id);
+- split(): 같은 로비 + 그 채널을 팀 채널로 가진 active 판을 모두 종료
+83:    const previous = this.store
+84-      .listActive(session.guildId)
+85-      .filter((s) => s.lobbyId === session.lobbyId || s.teamChannelIds.includes(session.lobbyId));
+86-    for (const p of previous) {
+87-      const ended = await this.end(guild, p.id);
+88-      if (!ended.ok) return ended;
+89-    }
+- ERR.inTeamChannel, store.findActiveForLobby 제거 (미사용)
+(src 에 남은 참조 없음)
+
+## 신규 테스트
+211:  it('팀 채널에서도 팀을 짤 수 있다 — 진행 중인 판과 끝난 판 모두', async () => {
+219:  it('팀 채널에서 팀 분배를 누르면 그 채널의 이전 판을 끝내고, 비면 바로 지운다', async () => {
+
+## 테스트
+ Test Files  5 passed (5)
+      Tests  51 passed (51)
+tsc --noEmit / npm run build 통과

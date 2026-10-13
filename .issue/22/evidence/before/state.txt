@@ -1,0 +1,18 @@
+## 기준 커밋
+55e9859 DOCS(docs): 이용안내 문구에 종료하기와 재분배 안내 추가 - 2026-10-12
+
+## 현재 동작 (코드 근거)
+- generate(): 팀 채널(active·ended 판 모두)에서 /팀짜기를 거절
+43:    if (this.store.listWithChannels(guildId).some((s) => s.teamChannelIds.includes(lobby.id))) {
+44-      return { ok: false, reason: ERR.inTeamChannel };
+45-    }
+15:  inTeamChannel:
+16-    '히익?! 여, 여긴 진행 중인 판의 팀 채널이라능...! (어깨를 움츠리며) 로, 로비로 가셔서 다시 불러 주시면 안 되겠냐능...?',
+- listWithChannels 는 active 와 ended 를 모두 반환
+131:      ? this.db.prepare(`SELECT * FROM sessions WHERE status IN ('active', 'ended') AND guild_id = ?`).all(guildId)
+- split(): 이전 판 자동 종료는 같은 로비(lobbyId) 기준만
+86:    const previous = this.store.findActiveForLobby(session.guildId, session.lobbyId);
+
+## 테스트
+ Test Files  5 passed (5)
+      Tests  49 passed (49)
