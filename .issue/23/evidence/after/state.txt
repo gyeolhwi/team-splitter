@@ -1,0 +1,32 @@
+## 기준 커밋
+875f42d DOCS(docs): 멤버 이동이 한 명씩 처리되는 이유와 측정 로그 안내 추가 - 2026-10-13
+747dac3 FEAT(session): 팀 분배·모으기 로그에 멤버 이동 인원과 소요 시간 기록 - 2026-10-13
+
+## 바뀐 동작 (코드 근거)
+- 분배·모으기 결과에 이동 인원(moved)과 이동 소요 시간(moveMs) 추가
+20:/** moveMs: 멤버 이동 요청에 걸린 시간. discord.js 가 같은 서버의 이동 요청을 하나씩 보내므로 인원 수에 비례한다. */
+22:  | { ok: true; session: Session; lobbyName: string; moved: number; notMoved: string[]; moveMs: number }
+32:      moveMs: number;
+160:    const moveMs = Date.now() - moveStart;
+166:    return { ok: true, session: activeSession, lobbyName: lobby.name, moved, notMoved, moveMs };
+215:    let moveMs = 0;
+223:      moveMs += Date.now() - moveStart;
+253:      moveMs,
+- 로그 형식
+89:    outcome.ok ? `ok moved=${outcome.moved} ms=${outcome.moveMs}` : outcome.reason,
+121:  log('assemble', session.id, outcome.ok ? `ok moved=${outcome.moved} ms=${outcome.moveMs}` : outcome.reason);
+172:  log('assemble', session.id, outcome.ok ? `ok moved=${outcome.moved} ms=${outcome.moveMs}` : outcome.reason);
+- 채널 간 병렬화는 하지 않음: 같은 대기열(SequentialHandler)이라 효과 없음 → docs/tech.md 기록
+61:### 멤버 이동 속도
+
+## 신규·보강 테스트
+210:      moveMs: expect.any(Number),
+267:      moveMs: expect.any(Number),
+
+## 테스트
+ Test Files  5 passed (5)
+      Tests  52 passed (52)
+tsc --noEmit / npm run build 통과
+
+## 실측
+미측정 (사유: 실제 디스코드 서버에서 사람이 음성채널에 있어야 이동 요청이 발생. 배포 후 서버 로그로 확인)
