@@ -1,6 +1,6 @@
 ## #23 작업 리포트
 
-**브랜치** `feat/23-member-move-speed` · 커밋 `747dac3`(구현) `875f42d`(문서)
+**브랜치** `feat/23-member-move-speed` · 커밋 `747dac3`(구현) `875f42d`(문서) `b51e57d`(테스트 보강)
 
 ### 결론
 - 인원이 한 명씩 옮겨지는 것은 **discord.js 가 같은 서버의 멤버 이동 요청을 대기열에 넣고 하나씩 보내기 때문**입니다. 봇 코드는 이미 동시에 요청하지만 실제 전송은 순차입니다.
@@ -11,7 +11,7 @@
 
 ### 바뀐 점
 - 분배·모으기 로그에 이동 인원과 이동 소요 시간을 남깁니다.
-  - `[split xxxxxxxx] message=… ok moved=8 ms=1200`
+  - `[split xxxxxxxx] message=… ok moved=8 notMoved=0 ms=1200`
   - `[assemble xxxxxxxx] ok moved=8 ms=1100`
 - docs/tech.md 에 "멤버 이동 속도" 절을 추가했습니다.
 
@@ -19,7 +19,7 @@
 | | before | after |
 |---|---|---|
 | 상태 | [before/state.txt](before/state.txt) | [after/state.txt](after/state.txt) |
-| 테스트 | 51 passed | 52 passed (모으기 성공 테스트 신규, 분배 결과 검증 보강) |
+| 테스트 | 51 passed | 53 passed (분배·모으기 성공 테스트 신규, 이동 시간 검증) |
 | 실측 | 미측정 | 미측정 (배포 후 실서버 로그로 확인) |
 
 UI 화면이 없는 디스코드 봇 변경이라 캡처 대신 코드 근거와 테스트 결과를 남겼습니다.
