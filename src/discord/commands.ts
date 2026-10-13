@@ -82,7 +82,12 @@ async function handleSplit(interaction: ButtonInteraction<'cached'>, service: Se
   await interaction.deferUpdate();
   const sessionId = interaction.customId.slice(SPLIT_PREFIX.length);
   const outcome = await service.split(interaction.guild, sessionId, interaction.user.id);
-  log('split', sessionId, `message=${interaction.message.id}`, outcome.ok ? 'ok' : outcome.reason);
+  log(
+    'split',
+    sessionId,
+    `message=${interaction.message.id}`,
+    outcome.ok ? `ok moved=${outcome.moved} notMoved=${outcome.notMoved.length} ms=${outcome.moveMs}` : outcome.reason,
+  );
   if (!outcome.ok) {
     if (outcome.stale) await interaction.editReply({ components: [] });
     return followUpError(interaction, outcome.reason);
@@ -113,7 +118,7 @@ async function handleAssembleButton(interaction: ButtonInteraction<'cached'>, se
 
   await interaction.deferUpdate();
   const outcome = await service.assemble(interaction.guild, session.id);
-  log('assemble', session.id, outcome.ok ? `ok moved=${outcome.moved}` : outcome.reason);
+  log('assemble', session.id, outcome.ok ? `ok moved=${outcome.moved} ms=${outcome.moveMs}` : outcome.reason);
   if (!outcome.ok) return followUpError(interaction, outcome.reason);
 
   await interaction.editReply({
@@ -164,7 +169,7 @@ async function handleAssembleCommand(interaction: ChatInputCommandInteraction<'c
 
   await interaction.deferReply();
   const outcome = await service.assemble(interaction.guild, session.id);
-  log('assemble', session.id, outcome.ok ? `ok moved=${outcome.moved}` : outcome.reason);
+  log('assemble', session.id, outcome.ok ? `ok moved=${outcome.moved} ms=${outcome.moveMs}` : outcome.reason);
   if (!outcome.ok) {
     await interaction.deleteReply().catch(() => undefined);
     return followUpError(interaction, outcome.reason);

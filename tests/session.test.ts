@@ -203,7 +203,12 @@ describe('판 종료', () => {
       createdAt: Date.now(),
     });
 
-    expect(await service.split(guild, 's2', 'host')).toMatchObject({ ok: true });
+    expect(await service.split(guild, 's2', 'host')).toMatchObject({
+      ok: true,
+      moved: 0,
+      notMoved: ['a', 'b'],
+      moveMs: expect.any(Number),
+    });
     expect(store.get('s1')).toMatchObject({ status: 'ended' });
     expect(store.get('s2')).toMatchObject({ status: 'active', teamChannelIds: ['new1', 'new2'] });
   });
@@ -242,5 +247,59 @@ describe('판 종료', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(channels.get('t1')!.delete).toHaveBeenCalledOnce();
     expect(store.get('s1')).toMatchObject({ teamChannelIds: ['t2'] });
+  });
+});
+
+describe('모으기', () => {
+  it('팀 채널 인원을 로비로 옮기고 이동 인원과 소요 시간을 돌려준다', async () => {
+    const lobby = { id: 'lobby', name: '로비', isVoiceBased: () => true };
+    Object.assign(guild.channels, { fetch: async (id: string) => (id === 'lobby' ? lobby : null) });
+    for (const channel of channels.values()) {
+      const member = { voice: { setChannel: vi.fn(async () => undefined) } };
+      Object.assign(channel.members, { map: <T>(fn: (m: typeof member) => T) => [fn(member), fn(member)] });
+    }
+
+    expect(await service.assemble(guild, 's1')).toMatchObject({
+      ok: true,
+      moved: 4,
+      failed: 0,
+      keptChannels: 0,
+      moveMs: expect.any(Number),
+    });
+    expect(store.get('s1')).toBeUndefined();
+  });
+});
+
+describe('팀 분배', () => {
+  it('로비에 있는 팀원을 팀 채널로 옮기고 옮긴 인원과 이동 시간을 돌려준다', async () => {
+    const lobby = { id: 'lobby2', name: '로비', parentId: null, isVoiceBased: () => true };
+    let created = 0;
+    Object.assign(guild.channels, {
+      fetch: async (id: string) => (id === 'lobby2' ? lobby : null),
+      create: vi.fn(async () => ({ id: `new${++created}` })),
+    });
+    const setChannel = vi.fn(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    Object.assign(guild, {
+      voiceStates: {
+        cache: new Map([
+          ['a', { channelId: 'lobby2', setChannel }],
+          ['b', { channelId: 'lobby2', setChannel }],
+        ]),
+      },
+    });
+    store.createDraft({
+      id: 's2',
+      guildId: 'guild1',
+      lobbyId: 'lobby2',
+      hostId: 'host',
+      participantIds: ['a', 'b', 'c'],
+      teams: [['a', 'c'], ['b']],
+      createdAt: Date.now(),
+    });
+
+    const split = service.split(guild, 's2', 'host');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await split).toMatchObject({ ok: true, moved: 2, notMoved: ['c'], moveMs: 100 });
+    expect(setChannel).toHaveBeenCalledTimes(2);
   });
 });

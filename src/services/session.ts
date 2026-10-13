@@ -17,9 +17,20 @@ const ENDED_RETRY_MS = 2_000;
 export type Failure = { ok: false; reason: string; stale?: boolean };
 
 export type GenerateOutcome = { ok: true; session: Session; unassigned: string[]; excluded: string[] } | Failure;
-export type SplitOutcome = { ok: true; session: Session; lobbyName: string; notMoved: string[] } | Failure;
+/** moveMs: 멤버 이동 요청에 걸린 시간. discord.js 가 같은 서버의 이동 요청을 하나씩 보내므로 인원 수에 비례한다. */
+export type SplitOutcome =
+  | { ok: true; session: Session; lobbyName: string; moved: number; notMoved: string[]; moveMs: number }
+  | Failure;
 export type AssembleOutcome =
-  | { ok: true; lobbyName: string; lobbyRecreated: boolean; moved: number; failed: number; keptChannels: number }
+  | {
+      ok: true;
+      lobbyName: string;
+      lobbyRecreated: boolean;
+      moved: number;
+      failed: number;
+      keptChannels: number;
+      moveMs: number;
+    }
   | Failure;
 export type EndOutcome = { ok: true; keptChannels: number } | Failure;
 
@@ -129,6 +140,7 @@ export class SessionService {
 
     // 지금 로비에 있는 팀원만 옮긴다.
     const notMoved: string[] = [];
+    const moveStart = Date.now();
     const moves = session.teams.flatMap((team, i) =>
       team.map(async (userId) => {
         const voice = guild.voiceStates.cache.get(userId);
@@ -145,11 +157,13 @@ export class SessionService {
       }),
     );
     await Promise.all(moves);
+    const moveMs = Date.now() - moveStart;
 
     const activeSession: Session = { ...session, status: 'active', teamChannelIds };
     // 아무도 옮기지 못한 채널은 나가는 이벤트가 없으니 여기서 정리를 예약한다.
     this.scheduleEmptyChannels(guild, activeSession);
-    return { ok: true, session: activeSession, lobbyName: lobby.name, notMoved };
+    const moved = session.teams.flat().length - notMoved.length;
+    return { ok: true, session: activeSession, lobbyName: lobby.name, moved, notMoved, moveMs };
   }
 
   /** /team assemble 을 친 사람이 속한 진행 중인 판을 찾는다. */
@@ -198,12 +212,15 @@ export class SessionService {
 
     let moved = 0;
     let failed = 0;
+    let moveMs = 0;
     const keptChannelIds: string[] = [];
     for (const channelId of session.teamChannelIds) {
       const channel = guild.channels.cache.get(channelId);
       if (!channel?.isVoiceBased()) continue;
 
+      const moveStart = Date.now();
       const results = await Promise.allSettled(channel.members.map((m) => m.voice.setChannel(lobby)));
+      moveMs += Date.now() - moveStart;
       const channelFailed = results.filter((r) => r.status === 'rejected').length;
       moved += results.length - channelFailed;
       failed += channelFailed;
@@ -226,7 +243,15 @@ export class SessionService {
       this.store.setTeamChannels(session.id, keptChannelIds);
       this.scheduleEmptyChannels(guild, { ...session, teamChannelIds: keptChannelIds });
     }
-    return { ok: true, lobbyName: lobby.name, lobbyRecreated, moved, failed, keptChannels: keptChannelIds.length };
+    return {
+      ok: true,
+      lobbyName: lobby.name,
+      lobbyRecreated,
+      moved,
+      failed,
+      keptChannels: keptChannelIds.length,
+      moveMs,
+    };
   }
 
   /** 아무도 옮기지 않고 판을 끝낸다. */

@@ -58,6 +58,14 @@ discord.js 메서드로 호출한다. 괄호 안은 실제 REST 엔드포인트�
 | 팀 채널 삭제 | `channel.delete` (`DELETE /channels/{channel}`) |
 | 결과 메시지 수정 | `interaction.editReply` |
 
+### 멤버 이동 속도
+
+- 디스코드에는 여러 명을 한 번에 옮기는 API가 없다. 한 명당 요청 하나다.
+- discord.js(`@discordjs/rest`)는 같은 서버의 멤버 수정 요청을 한 대기열(`SequentialHandler`)에 넣고, 앞 요청의 응답이 와야 다음 요청을 보낸다. 코드에서 `Promise.all`로 동시에 넘겨도 실제로는 한 명씩 옮겨진다.
+- 그래서 이동 시간은 대략 `인원 수 × 요청 한 번 왕복 시간`이다. 채널끼리 동시에 보내도 같은 대기열을 지나므로 빨라지지 않는다.
+- 대기열을 우회해 직접 동시에 보내면 속도 제한(429)에 걸려 이동이 실패할 수 있어 쓰지 않는다.
+- 실제 소요 시간은 로그로 확인한다: `[split …] … ok moved=8 notMoved=0 ms=1200`, `[assemble …] ok moved=8 ms=1100` (`ms`는 이동 요청에 걸린 시간만 잰다).
+
 ## 4. 봇 권한과 Intents
 
 | 권한 | 용도 | 값 |
