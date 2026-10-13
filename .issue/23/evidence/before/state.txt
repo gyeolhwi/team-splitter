@@ -1,0 +1,28 @@
+## 기준 커밋
+27d2644 Merge pull request #24 from gyeolhwi/fix/22-team-channel-regenerate
+
+## 현재 동작 (코드 근거)
+- 분배: 팀원 이동을 Promise.all 로 동시에 요청
+132:    const moves = session.teams.flatMap((team, i) =>
+147:    await Promise.all(moves);
+- 모으기: 채널 안은 동시, 채널끼리는 for 루프로 순차
+202:    for (const channelId of session.teamChannelIds) {
+206:      const results = await Promise.allSettled(channel.members.map((m) => m.voice.setChannel(lobby)));
+252:    for (const channelId of session.teamChannelIds) {
+- 로그에 이동 소요 시간 없음
+85:  log('split', sessionId, `message=${interaction.message.id}`, outcome.ok ? 'ok' : outcome.reason);
+116:  log('assemble', session.id, outcome.ok ? `ok moved=${outcome.moved}` : outcome.reason);
+167:  log('assemble', session.id, outcome.ok ? `ok moved=${outcome.moved}` : outcome.reason);
+
+## 라이브러리 근거 (@discordjs/rest 2.6.3)
+- 같은 라우트+같은 guild 는 한 핸들러, 일반 라우트는 SequentialHandler
+    const queue = majorParameter === BurstHandlerMajorIdKey ? new BurstHandler(this, hash, majorParameter) : new SequentialHandler(this, hash, majorParameter);
+    const majorId = majorIdMatch?.[2] ?? majorIdMatch?.[1] ?? "global";
+- queueRequest: 대기 → 요청 완료 → 다음 요청 (한 번에 1개)
+    await queue.wait({ signal: requestData.signal });
+    try {
+      queue.shift();
+
+## 테스트
+ Test Files  5 passed (5)
+      Tests  51 passed (51)
