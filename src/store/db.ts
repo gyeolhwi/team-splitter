@@ -118,13 +118,6 @@ export class SessionStore {
     return (rows as SessionRow[]).map(toSession);
   }
 
-  findActiveForLobby(guildId: string, lobbyId: string): Session | undefined {
-    const row = this.db
-      .prepare(`SELECT * FROM sessions WHERE status = 'active' AND guild_id = ? AND lobby_id = ?`)
-      .get(guildId, lobbyId) as SessionRow | undefined;
-    return row && toSession(row);
-  }
-
   /** 팀 채널을 들고 있는 판(active, ended) */
   listWithChannels(guildId?: string): Session[] {
     const rows = guildId

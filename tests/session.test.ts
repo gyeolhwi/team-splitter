@@ -207,4 +207,40 @@ describe('판 종료', () => {
     expect(store.get('s1')).toMatchObject({ status: 'ended' });
     expect(store.get('s2')).toMatchObject({ status: 'active', teamChannelIds: ['new1', 'new2'] });
   });
+
+  it('팀 채널에서도 팀을 짤 수 있다 — 진행 중인 판과 끝난 판 모두', async () => {
+    const inChannel = (id: string) =>
+      ({ id, guild, members: [{ id: 'a', user: { bot: false } }, { id: 'b', user: { bot: false } }] }) as never;
+    expect(service.generate(inChannel('t1'), 'host', { team: 2 }, new Set())).toMatchObject({ ok: true });
+    await service.end(guild, 's1');
+    expect(service.generate(inChannel('t2'), 'host', { team: 2 }, new Set())).toMatchObject({ ok: true });
+  });
+
+  it('팀 채널에서 팀 분배를 누르면 그 채널의 이전 판을 끝내고, 비면 바로 지운다', async () => {
+    const t1 = { id: 't1', name: '1팀', parentId: null, isVoiceBased: () => true };
+    let created = 0;
+    Object.assign(guild.channels, {
+      fetch: async (id: string) => (id === 't1' ? t1 : null),
+      create: vi.fn(async () => ({ id: `new${++created}` })),
+    });
+    Object.assign(guild, { voiceStates: { cache: new Map() } });
+    store.createDraft({
+      id: 's2',
+      guildId: 'guild1',
+      lobbyId: 't1',
+      hostId: 'host',
+      participantIds: ['a', 'b'],
+      teams: [['a'], ['b']],
+      createdAt: Date.now(),
+    });
+
+    expect(await service.split(guild, 's2', 'host')).toMatchObject({ ok: true });
+    expect(store.get('s1')).toMatchObject({ status: 'ended', teamChannelIds: ['t1', 't2'] });
+    expect(store.get('s2')).toMatchObject({ status: 'active', teamChannelIds: ['new1', 'new2'] });
+
+    leave('t1', 0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(channels.get('t1')!.delete).toHaveBeenCalledOnce();
+    expect(store.get('s1')).toMatchObject({ teamChannelIds: ['t2'] });
+  });
 });

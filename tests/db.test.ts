@@ -114,7 +114,6 @@ describe('ended 상태', () => {
     expect(store.end('s1')).toBe(true);
     draft('s2');
     expect(store.activate('s2')).toBe(true);
-    expect(store.findActiveForLobby('guild1', 'lobby1')?.id).toBe('s2');
     expect(store.listWithChannels().map((s) => s.id).sort()).toEqual(['s1', 's2']);
     expect(store.listActive().map((s) => s.id)).toEqual(['s2']);
   });
