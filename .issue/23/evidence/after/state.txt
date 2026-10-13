@@ -19,13 +19,13 @@
 - 채널 간 병렬화는 하지 않음: 같은 대기열(SequentialHandler)이라 효과 없음 → docs/tech.md 기록
 61:### 멤버 이동 속도
 
-## 신규·보강 테스트
+## 신규·보강 테스트 (분배 성공: moved=2, notMoved=[c], moveMs=100 가짜 타이머로 검증)
 210:      moveMs: expect.any(Number),
 267:      moveMs: expect.any(Number),
 
 ## 테스트
  Test Files  5 passed (5)
-      Tests  52 passed (52)
+      Tests  53 passed (53)
 tsc --noEmit / npm run build 통과
 
 ## 실측
