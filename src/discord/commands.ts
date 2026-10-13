@@ -86,7 +86,7 @@ async function handleSplit(interaction: ButtonInteraction<'cached'>, service: Se
     'split',
     sessionId,
     `message=${interaction.message.id}`,
-    outcome.ok ? `ok moved=${outcome.moved} ms=${outcome.moveMs}` : outcome.reason,
+    outcome.ok ? `ok moved=${outcome.moved} notMoved=${outcome.notMoved.length} ms=${outcome.moveMs}` : outcome.reason,
   );
   if (!outcome.ok) {
     if (outcome.stale) await interaction.editReply({ components: [] });
