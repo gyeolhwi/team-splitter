@@ -40,10 +40,6 @@ export class SessionService {
 
   generate(lobby: VoiceBasedChannel, hostId: string, options: TeamOptions, excludeIds: Set<string>): GenerateOutcome {
     const guildId = lobby.guild.id;
-    if (this.store.listWithChannels(guildId).some((s) => s.teamChannelIds.includes(lobby.id))) {
-      return { ok: false, reason: ERR.inTeamChannel };
-    }
-
     const participantIds = lobby.members.filter((m) => !m.user.bot && !excludeIds.has(m.id)).map((m) => m.id);
     if (participantIds.length < 2) {
       return { ok: false, reason: ERR.tooFew };
@@ -82,10 +78,13 @@ export class SessionService {
     const lobby = await fetchVoiceChannel(guild, session.lobbyId);
     if (!lobby) return { ok: false, reason: ERR.lobbyGone };
 
-    // 같은 로비에 이전 판이 남아 있으면 끝내고 새 판을 시작한다. 모으기를 안 하고 로비로 돌아온 경우다.
-    const previous = this.store.findActiveForLobby(session.guildId, session.lobbyId);
-    if (previous) {
-      const ended = await this.end(guild, previous.id);
+    // 이전 판이 남아 있으면 끝내고 새 판을 시작한다. 모으기를 안 하고 로비로 돌아왔거나,
+    // 이전 판의 팀 채널에 모인 채로 다시 팀을 짠 경우다.
+    const previous = this.store
+      .listActive(session.guildId)
+      .filter((s) => s.lobbyId === session.lobbyId || s.teamChannelIds.includes(session.lobbyId));
+    for (const p of previous) {
+      const ended = await this.end(guild, p.id);
       if (!ended.ok) return ended;
     }
 
