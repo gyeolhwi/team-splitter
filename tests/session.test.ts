@@ -203,7 +203,12 @@ describe('판 종료', () => {
       createdAt: Date.now(),
     });
 
-    expect(await service.split(guild, 's2', 'host')).toMatchObject({ ok: true });
+    expect(await service.split(guild, 's2', 'host')).toMatchObject({
+      ok: true,
+      moved: 0,
+      notMoved: ['a', 'b'],
+      moveMs: expect.any(Number),
+    });
     expect(store.get('s1')).toMatchObject({ status: 'ended' });
     expect(store.get('s2')).toMatchObject({ status: 'active', teamChannelIds: ['new1', 'new2'] });
   });
@@ -242,5 +247,25 @@ describe('판 종료', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(channels.get('t1')!.delete).toHaveBeenCalledOnce();
     expect(store.get('s1')).toMatchObject({ teamChannelIds: ['t2'] });
+  });
+});
+
+describe('모으기', () => {
+  it('팀 채널 인원을 로비로 옮기고 이동 인원과 소요 시간을 돌려준다', async () => {
+    const lobby = { id: 'lobby', name: '로비', isVoiceBased: () => true };
+    Object.assign(guild.channels, { fetch: async (id: string) => (id === 'lobby' ? lobby : null) });
+    for (const channel of channels.values()) {
+      const member = { voice: { setChannel: vi.fn(async () => undefined) } };
+      Object.assign(channel.members, { map: <T>(fn: (m: typeof member) => T) => [fn(member), fn(member)] });
+    }
+
+    expect(await service.assemble(guild, 's1')).toMatchObject({
+      ok: true,
+      moved: 4,
+      failed: 0,
+      keptChannels: 0,
+      moveMs: expect.any(Number),
+    });
+    expect(store.get('s1')).toBeUndefined();
   });
 });
