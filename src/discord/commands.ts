@@ -3,11 +3,13 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
+  EmbedBuilder,
   MessageFlags,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Interaction,
   type RepliableInteraction,
+  type VoiceBasedChannel,
 } from 'discord.js';
 import { findProblems, formatUptime, type HealthInput } from '../domain/health.js';
 import { ERR, MSG } from '../messages.js';
@@ -17,11 +19,23 @@ import type { AssembleOutcome, SessionService } from '../services/session.js';
 const SPLIT_PREFIX = 'split:';
 const ASSEMBLE_PREFIX = 'assemble:';
 const END_PREFIX = 'end:';
+const RECRUIT_PREFIX = 'recruit:';
 
 /** 슬래시 명령과 옵션 이름. scripts/register-commands.mjs 와 맞춘다. */
-const COMMAND = { ping: 'ping', generate: '팀짜기', assemble: '모으기' } as const;
-const OPTION = { team: '팀수', number: '인원수', exclude: '제외' } as const;
-const BUTTON = { split: '팀 분배', assemble: '모으기', end: '종료하기' } as const;
+const COMMAND = { ping: 'ping', generate: '팀짜기', assemble: '모으기', recruit: '구인', seek: '구직' } as const;
+const OPTION = { team: '팀수', number: '인원수', exclude: '제외', category: '카테고리', description: '설명' } as const;
+const BUTTON = {
+  split: '팀 분배',
+  assemble: '모으기',
+  end: '종료하기',
+  join: '음성채널 입장',
+  recruit: '구인하기',
+} as const;
+
+const RECRUIT_COLOR = 0x8ab4f8;
+const SEEK_COLOR = 0x57f287;
+/** 구인하기로 만든 초대링크 유효 시간(초) */
+const INVITE_MAX_AGE = 60 * 60;
 
 /** 멘션은 이름으로만 보이고 알림은 가지 않게 한다. */
 const NO_PINGS = { parse: [] } as const;
@@ -36,6 +50,8 @@ export async function handleInteraction(interaction: Interaction, service: Sessi
     if (interaction.commandName === COMMAND.ping) return handlePing(interaction, service);
     if (interaction.commandName === COMMAND.generate) return handleGenerate(interaction, service);
     if (interaction.commandName === COMMAND.assemble) return handleAssembleCommand(interaction, service);
+    if (interaction.commandName === COMMAND.recruit) return handleRecruit(interaction);
+    if (interaction.commandName === COMMAND.seek) return handleSeek(interaction);
     return;
   }
 
@@ -43,6 +59,7 @@ export async function handleInteraction(interaction: Interaction, service: Sessi
     if (interaction.customId.startsWith(SPLIT_PREFIX)) return handleSplit(interaction, service);
     if (interaction.customId.startsWith(ASSEMBLE_PREFIX)) return handleAssembleButton(interaction, service);
     if (interaction.customId.startsWith(END_PREFIX)) return handleEndButton(interaction, service);
+    if (interaction.customId.startsWith(RECRUIT_PREFIX)) return handleRecruitButton(interaction);
   }
 }
 
@@ -177,6 +194,75 @@ async function handleAssembleCommand(interaction: ChatInputCommandInteraction<'c
   await interaction.editReply({ content: formatAssemble(outcome), allowedMentions: NO_PINGS });
 }
 
+async function handleRecruit(interaction: ChatInputCommandInteraction<'cached'>) {
+  const channel = interaction.member.voice.channel;
+  if (!channel) return replyError(interaction, ERR.recruitNotInVoice);
+
+  const category = interaction.options.getString(OPTION.category, true);
+  const description = interaction.options.getString(OPTION.description) ?? undefined;
+  log('recruit', '-', `channel=${channel.id}`, `category=${category}`);
+  await interaction.reply({
+    embeds: [
+      buildRecruitEmbed({
+        hostId: interaction.user.id,
+        category,
+        channelId: channel.id,
+        memberCount: channel.members.size,
+        userLimit: channel.userLimit,
+        description,
+      }),
+    ],
+    components: [linkRow(BUTTON.join, channel.url)],
+    allowedMentions: NO_PINGS,
+  });
+}
+
+async function handleSeek(interaction: ChatInputCommandInteraction<'cached'>) {
+  const category = interaction.options.getString(OPTION.category, true);
+  const description = interaction.options.getString(OPTION.description) ?? undefined;
+  log('seek', '-', `category=${category}`);
+  await interaction.reply({
+    embeds: [buildSeekEmbed({ seekerId: interaction.user.id, category, description })],
+    components: [
+      buttonRow({ customId: RECRUIT_PREFIX + interaction.user.id, label: BUTTON.recruit, style: ButtonStyle.Primary }),
+    ],
+    allowedMentions: NO_PINGS,
+  });
+}
+
+/** 구직글의 구인하기 — 누른 사람의 음성채널 초대링크를 구직자 DM으로 보낸다. */
+export async function handleRecruitButton(interaction: ButtonInteraction<'cached'>) {
+  const seekerId = interaction.customId.slice(RECRUIT_PREFIX.length);
+  if (seekerId === interaction.user.id) return replyError(interaction, ERR.recruitSelf);
+  const channel = interaction.member.voice.channel;
+  if (!channel) return replyError(interaction, ERR.recruitNotInVoice);
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const link = await inviteLink(channel);
+  const sent = await interaction.client.users
+    .send(seekerId, {
+      content: MSG.inviteDm(interaction.user.id, channel.name, interaction.guild.name),
+      components: [linkRow(BUTTON.join, link)],
+    })
+    .then(
+      () => true,
+      () => false,
+    );
+  log('invite', '-', `seeker=${seekerId}`, `channel=${channel.id}`, sent ? 'ok' : 'dmFailed');
+  await interaction.editReply({ content: sent ? MSG.inviteSent(seekerId) : ERR.dmClosed, allowedMentions: NO_PINGS });
+}
+
+/** 초대 만들기 권한이 없으면 서버 멤버끼리 쓸 수 있는 채널 링크로 대신한다. */
+export async function inviteLink(channel: VoiceBasedChannel): Promise<string> {
+  try {
+    const invite = await channel.createInvite({ maxAge: INVITE_MAX_AGE, unique: false });
+    return invite.url;
+  } catch (error) {
+    console.warn(`초대링크 생성 실패, 채널 링크로 대신함 (channel=${channel.id})`, error);
+    return channel.url;
+  }
+}
+
 function log(action: string, sessionId: string, ...details: string[]) {
   console.log(`[${action} ${sessionId.slice(0, 8)}] ${details.join(' ')}`);
 }
@@ -198,6 +284,12 @@ function buttonRow(...buttons: { customId: string; label: string; style: ButtonS
     buttons.map(({ customId, label, style }) =>
       new ButtonBuilder().setCustomId(customId).setLabel(label).setStyle(style),
     ),
+  );
+}
+
+function linkRow(label: string, url: string) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setLabel(label).setStyle(ButtonStyle.Link).setURL(url),
   );
 }
 
@@ -261,4 +353,36 @@ function formatAssemble(outcome: Extract<AssembleOutcome, { ok: true }>): string
   const lines = [MSG.assembled(where, outcome.moved)];
   if (outcome.failed > 0) lines.push(MSG.assembleFailed(outcome.failed));
   return lines.join('\n');
+}
+
+export function buildRecruitEmbed(input: {
+  hostId: string;
+  category: string;
+  channelId: string;
+  memberCount: number;
+  userLimit: number;
+  description?: string;
+}): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setColor(RECRUIT_COLOR)
+    .setTitle(MSG.recruitTitle)
+    .setDescription(MSG.recruitBody(input.hostId))
+    .addFields(
+      { name: MSG.fieldCategory, value: input.category },
+      { name: MSG.fieldChannel, value: `<#${input.channelId}>`, inline: true },
+      { name: MSG.fieldMembers, value: MSG.memberCount(input.memberCount, input.userLimit), inline: true },
+    );
+  if (input.description) embed.addFields({ name: MSG.fieldDescription, value: input.description });
+  return embed;
+}
+
+export function buildSeekEmbed(input: { seekerId: string; category: string; description?: string }): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setColor(SEEK_COLOR)
+    .setTitle(MSG.seekTitle)
+    .setDescription(MSG.seekBody(input.seekerId))
+    .addFields({ name: MSG.fieldCategory, value: input.category })
+    .setFooter({ text: MSG.seekFooter });
+  if (input.description) embed.addFields({ name: MSG.fieldDescription, value: input.description });
+  return embed;
 }

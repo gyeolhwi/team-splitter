@@ -12,6 +12,8 @@ const INTEGER = 4;
 const GUILD_INSTALL = 0;
 const GUILD_CONTEXT = 0;
 
+const CATEGORY_CHOICES = ['일반', '경쟁'].map((name) => ({ name, value: name }));
+
 const commands = [
   {
     name: 'ping',
@@ -35,6 +37,26 @@ const commands = [
     description: '팀 채널 인원을 로비로 모으고 판을 끝내요',
     integration_types: [GUILD_INSTALL],
     contexts: [GUILD_CONTEXT],
+  },
+  {
+    name: '구인',
+    description: '지금 있는 음성채널로 같이 할 팀원을 모집해요',
+    integration_types: [GUILD_INSTALL],
+    contexts: [GUILD_CONTEXT],
+    options: [
+      { type: STRING, name: '카테고리', description: '게임 종류', required: true, choices: CATEGORY_CHOICES },
+      { type: STRING, name: '설명', description: '모집 설명 (예: 큰맵 즐교 300+)', max_length: 200 },
+    ],
+  },
+  {
+    name: '구직',
+    description: '같이 할 팀을 찾아요. 구인하기를 누른 분의 초대링크가 DM으로 와요',
+    integration_types: [GUILD_INSTALL],
+    contexts: [GUILD_CONTEXT],
+    options: [
+      { type: STRING, name: '카테고리', description: '게임 종류', required: true, choices: CATEGORY_CHOICES },
+      { type: STRING, name: '설명', description: '본인 소개 (티어·플레이 스타일 등)', max_length: 200 },
+    ],
   },
 ];
 
