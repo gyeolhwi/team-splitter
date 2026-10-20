@@ -54,17 +54,17 @@ civil-war의 `docs/ops/discord-bot-setup.md`에서 **실제로 겪었던 문제*
 2. **Install Link:** `Discord Provided Link`
 3. **Default Install Settings → Guild Install**
    - Scopes: `applications.commands`, **`bot`** (둘 다)
-   - Permissions: View Channels, Manage Channels, Connect, Move Members
+   - Permissions: View Channels, Manage Channels, Connect, Move Members, Create Instant Invite
 4. **Save Changes**
 
 직접 만든 초대 링크를 쓸 때:
 
 ```
-https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=17826832
+https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot+applications.commands&permissions=17826833
 ```
 
 > ⚠️ **`bot` 스코프를 빠뜨리면 봇이 서버 멤버로 들어오지 않는다.** 명령어는 보이지만 채널 생성·이동이 전부 실패한다.
-> 초대 화면에 **권한 4개가 나열되면 정상**이다. "명령어 만들기"만 있고 권한 목록이 없으면 `bot` 스코프가 빠진 것이다.
+> 초대 화면에 **권한 5개가 나열되면 정상**이다. "명령어 만들기"만 있고 권한 목록이 없으면 `bot` 스코프가 빠진 것이다.
 > 이미 잘못 초대한 서버는 올바른 링크로 **다시 초대**하면 덮어써진다.
 
 ---
