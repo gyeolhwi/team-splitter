@@ -1,0 +1,11 @@
+## 등록 명령
+name: 'ping',
+name: '팀짜기',
+name: '모으기',
+
+## 명령 라우팅 (src/discord/commands.ts)
+22:const COMMAND = { ping: 'ping', generate: '팀짜기', assemble: '모으기' } as const;
+
+## 테스트
+ Test Files  5 passed (5)
+      Tests  53 passed (53)
