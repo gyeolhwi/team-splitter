@@ -1,0 +1,60 @@
+## 등록 명령
+name: 'ping',
+name: '팀짜기',
+name: '모으기',
+name: '구인',
+name: '구직',
+
+## 명령 라우팅 (src/discord/commands.ts)
+25:const COMMAND = { ping: 'ping', generate: '팀짜기', assemble: '모으기', recruit: '구인', seek: '구직' } as const;
+
+## 테스트
+ Test Files  6 passed (6)
+      Tests  62 passed (62)
+
+## /구인 임베드 (설명: 큰맵 즐교 300+, 3/4명)
+{
+ "color": 9090296,
+ "title": "팀원 모집",
+ "description": "<@HOST> 님이 팀원 모집 중입니다.",
+ "fields": [
+  {
+   "name": "카테고리",
+   "value": "일반"
+  },
+  {
+   "name": "채널명",
+   "value": "<#CH>",
+   "inline": true
+  },
+  {
+   "name": "멤버",
+   "value": "3명 / 4명",
+   "inline": true
+  },
+  {
+   "name": "설명",
+   "value": "큰맵 즐교 300+"
+  }
+ ]
+}
+
+## /구직 임베드
+{
+ "color": 5763719,
+ "title": "팀 구함",
+ "description": "<@SEEKER> 님이 같이 할 팀을 찾고 있습니다.",
+ "fields": [
+  {
+   "name": "카테고리",
+   "value": "경쟁"
+  },
+  {
+   "name": "설명",
+   "value": "다이아 원딜"
+  }
+ ],
+ "footer": {
+  "text": "음성채널에 계신 분이 구인하기를 누르면 DM으로 초대링크를 보내드려요"
+ }
+}
