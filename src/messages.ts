@@ -31,6 +31,12 @@ export const ERR = {
   notMember: '저, 저기... 모으기는 판을 연 분이나 참가자만 할 수 있다능...! (어깨를 움츠리며) 고멘나사이...!',
   notMemberEnd: '저, 저기... 종료는 판을 연 분이나 참가자만 할 수 있다능...! (어깨를 움츠리며) 고멘나사이...!',
   nothingToAssemble: '히익?! 모, 모을 판이 없다능...! (두리번두리번)',
+  recruitNotInVoice:
+    '에, 에엣?! (눈치를 쓱 본다) 구, 구인은 음성채널에 들어가 계셔야 할 수 있다능...! 머, 먼저 음성채널에 들어가 주시라능...! (식은땀)',
+  recruitSelf: '히, 히익?! (화들짝) 보, 본인 구직글에는 구인하기를 누를 수 없다능...! (버튼을 꼭 쥔다)',
+  inviteCooldown: '자, 잠깐만요...! (허둥지둥) 바, 방금 그분께 초대장을 보냈다능...! 5분 뒤에 다시 눌러 주시라능...!',
+  dmClosed:
+    '야, 야바이...! (털썩) 그, 그분 DM이 막혀 있어서 초대링크를 못 보냈다능...! 직접 말 걸어 주시면 혼또니 감사하겠다능...!',
   unknown: '고, 고멘나사이...!! 무, 문제가 생겼다능...! (식은땀 뻘뻘) 자, 잠시 후에 다시 불러 주시라능...!',
 };
 
@@ -64,6 +70,21 @@ export const MSG = {
   assembledPartial: (where: string, moved: number, kept: number) =>
     `야, 야바이...! 일부만 모셨다능...! ${where}로 ${moved}명 모셔 왔다능...\n` +
     `(식은땀 뻘뻘) 사람이 남아 있는 팀 채널 ${kept}개는 안 지웠다능...! 비면 알아서 치워 두겠다능... \`/모으기\`로 다시 불러 주셔도 된다능...!`,
+
+  recruitTitle: '팀원 모집',
+  recruitBody: (hostId: string) => `<@${hostId}> 님이 팀원 모집 중입니다.`,
+  seekTitle: '팀 구함',
+  seekBody: (seekerId: string) => `<@${seekerId}> 님이 같이 할 팀을 찾고 있습니다.`,
+  seekFooter: '음성채널에 계신 분이 구인하기를 누르면 DM으로 초대링크를 보내드려요',
+  fieldCategory: '카테고리',
+  fieldChannel: '채널명',
+  fieldMembers: '멤버',
+  fieldDescription: '설명',
+  memberCount: (count: number, limit: number) => (limit > 0 ? `${count}명 / ${limit}명` : `${count}명`),
+  inviteDm: (inviterId: string, voiceName: string, guildName: string) =>
+    `히, 히이익?! (헐레벌떡) 초, 초대장 배달 왔다능...!\n` +
+    `<@${inviterId}>님이 **${guildName}** ${channelName(voiceName)}에서 같이 하자고 하신다능...! (호다닥)`,
+  inviteSent: (seekerId: string) => `(꾸벅) <@${seekerId}>님 DM으로 초대링크 배달 완료했다능...!`,
 
   pingOk: '헉, 헉... (안경을 슥 치켜올리며) 배, 배근이 정상 운행 중이라능...! 언제든 불러 주시라능...!',
   pingBad: '야, 야바이...!! (식은땀 뻘뻘) 저, 정상이 아니라능...! 이상한 데가 있다능...',

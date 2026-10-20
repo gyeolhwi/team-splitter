@@ -74,8 +74,9 @@ discord.js 메서드로 호출한다. 괄호 안은 실제 REST 엔드포인트�
 | Manage Channels | 팀 채널 생성·삭제 | 16 |
 | Connect | 멤버를 옮길 채널에 봇도 연결 권한이 있어야 함 | 1048576 |
 | Move Members | 멤버 이동 | 16777216 |
+| Create Instant Invite | [구인하기] 초대링크 생성. 없으면 채널 링크로 대신한다 | 1 |
 
-- 합계: `permissions=17826832`
+- 합계: `permissions=17826833`
 - 명령 응답은 interaction 응답으로 보내므로 메시지 보내기 권한은 필요 없다.
 - Administrator 권한은 주지 않는다.
 - Intents: `Guilds`(1) + `GuildVoiceStates`(128). 둘 다 일반 Intent라서 개발자 포털에서 따로 켤 것이 없다.
