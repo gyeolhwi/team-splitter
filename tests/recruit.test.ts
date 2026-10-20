@@ -114,8 +114,16 @@ describe('handleRecruitButton', () => {
   });
 
   it('DM이 막혀 있으면 누른 사람에게 알린다', async () => {
-    const { interaction, run } = fakeButton({ clickerId: 'host', inVoice: true, dmFails: true });
+    const { interaction, run } = fakeButton({ clickerId: 'host2', inVoice: true, dmFails: true });
     await run();
     expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({ content: ERR.dmClosed }));
+  });
+
+  it('같은 사람이 5분 안에 다시 누르면 DM을 또 보내지 않는다', async () => {
+    await fakeButton({ clickerId: 'host3', inVoice: true }).run();
+    const again = fakeButton({ clickerId: 'host3', inVoice: true });
+    await again.run();
+    expect(again.send).not.toHaveBeenCalled();
+    expect(again.interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ content: ERR.inviteCooldown }));
   });
 });

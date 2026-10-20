@@ -5,6 +5,7 @@ import {
   ChannelType,
   EmbedBuilder,
   MessageFlags,
+  escapeMarkdown,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Interaction,
@@ -36,6 +37,10 @@ const RECRUIT_COLOR = 0x8ab4f8;
 const SEEK_COLOR = 0x57f287;
 /** 구인하기로 만든 초대링크 유효 시간(초) */
 const INVITE_MAX_AGE = 60 * 60;
+/** 같은 사람이 같은 구직자에게 초대를 다시 보낼 수 있을 때까지의 간격 */
+const INVITE_COOLDOWN_MS = 5 * 60_000;
+/** `구직자:누른사람` → 마지막으로 보낸 시각. 재시작하면 비워진다. */
+const lastInviteAt = new Map<string, number>();
 
 /** 멘션은 이름으로만 보이고 알림은 가지 않게 한다. */
 const NO_PINGS = { parse: [] } as const;
@@ -236,18 +241,26 @@ export async function handleRecruitButton(interaction: ButtonInteraction<'cached
   if (seekerId === interaction.user.id) return replyError(interaction, ERR.recruitSelf);
   const channel = interaction.member.voice.channel;
   if (!channel) return replyError(interaction, ERR.recruitNotInVoice);
+  const key = `${seekerId}:${interaction.user.id}`;
+  const now = Date.now();
+  if (now - (lastInviteAt.get(key) ?? 0) < INVITE_COOLDOWN_MS) return replyError(interaction, ERR.inviteCooldown);
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const link = await inviteLink(channel);
   const sent = await interaction.client.users
     .send(seekerId, {
-      content: MSG.inviteDm(interaction.user.id, channel.name, interaction.guild.name),
+      content: MSG.inviteDm(
+        interaction.user.id,
+        escapeMarkdown(channel.name),
+        escapeMarkdown(interaction.guild.name),
+      ),
       components: [linkRow(BUTTON.join, link)],
     })
     .then(
       () => true,
       () => false,
     );
+  if (sent) lastInviteAt.set(key, now);
   log('invite', '-', `seeker=${seekerId}`, `channel=${channel.id}`, sent ? 'ok' : 'dmFailed');
   await interaction.editReply({ content: sent ? MSG.inviteSent(seekerId) : ERR.dmClosed, allowedMentions: NO_PINGS });
 }
@@ -255,7 +268,7 @@ export async function handleRecruitButton(interaction: ButtonInteraction<'cached
 /** 초대 만들기 권한이 없으면 서버 멤버끼리 쓸 수 있는 채널 링크로 대신한다. */
 export async function inviteLink(channel: VoiceBasedChannel): Promise<string> {
   try {
-    const invite = await channel.createInvite({ maxAge: INVITE_MAX_AGE, unique: false });
+    const invite = await channel.createInvite({ maxAge: INVITE_MAX_AGE, unique: true });
     return invite.url;
   } catch (error) {
     console.warn(`초대링크 생성 실패, 채널 링크로 대신함 (channel=${channel.id})`, error);
