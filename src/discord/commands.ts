@@ -63,6 +63,7 @@ const MAX_PIN_OPTIONS = 25;
 const PIN_TIMEOUT_MS = 15 * 60_000;
 
 interface PinPick {
+  userId: string;
   lobbyId: string;
   options: TeamOptions;
   excludeIds: Set<string>;
@@ -185,7 +186,7 @@ async function openPinPicker(
     );
 
   const timer = setTimeout(() => pinPicks.delete(id), PIN_TIMEOUT_MS);
-  pinPicks.set(id, { lobbyId, options, excludeIds, teamCount, timer });
+  pinPicks.set(id, { userId: interaction.user.id, lobbyId, options, excludeIds, teamCount, timer });
   try {
     await interaction.showModal(modal);
     return true;
@@ -200,7 +201,10 @@ async function openPinPicker(
 async function handlePinSubmit(interaction: ModalSubmitInteraction<'cached'>, service: SessionService) {
   const id = interaction.customId.slice(PIN_PREFIX.length);
   const pick = pinPicks.get(id);
-  if (!pick) return replyError(interaction, ERR.stale);
+  // 팝업을 받은 사람이 아니거나 그새 목록에서 빠졌으면 끝난 요청으로 본다.
+  if (!pick || pick.userId !== interaction.user.id || !OPERATOR_IDS.has(interaction.user.id)) {
+    return replyError(interaction, ERR.stale);
+  }
   clearTimeout(pick.timer);
   pinPicks.delete(id);
 
