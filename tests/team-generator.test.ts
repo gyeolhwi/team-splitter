@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateTeams, shuffle } from '../src/domain/team-generator.js';
+import { generateTeams, plannedSizes, shuffle } from '../src/domain/team-generator.js';
 
 const people = (n: number) => Array.from({ length: n }, (_, i) => `u${i + 1}`);
 /** 섞지 않는 난수: 항상 마지막 자리를 고른다 */
@@ -46,6 +46,51 @@ describe('generateTeams', () => {
     if (!result.ok) throw new Error('unexpected');
     const all = [...result.teams.flat(), ...result.unassigned].sort();
     expect(all).toEqual(people(11).sort());
+  });
+});
+
+describe('generateTeams fixed', () => {
+  const sorted = (teams: string[][]) => teams.map((t) => [...t].sort());
+
+  it('고정한 사람은 그 팀에 들어가고 팀 크기는 그대로다', () => {
+    const result = generateTeams(people(10), { team: 2 }, undefined, [['u1', 'u2'], ['u3']]);
+    if (!result.ok) throw new Error('unexpected');
+    expect(result.teams.map((t) => t.length)).toEqual([5, 5]);
+    expect(result.teams[0]).toEqual(expect.arrayContaining(['u1', 'u2']));
+    expect(result.teams[1]).toContain('u3');
+    expect([...result.teams.flat(), ...result.unassigned].sort()).toEqual(people(10).sort());
+  });
+
+  it('인원수 모드에서 고정한 사람은 미지정으로 빠지지 않는다', () => {
+    for (let i = 0; i < 20; i++) {
+      const result = generateTeams(people(10), { number: 4 }, undefined, [[], ['u10']]);
+      if (!result.ok) throw new Error('unexpected');
+      expect(result.teams[1]).toContain('u10');
+      expect(result.unassigned).toHaveLength(2);
+      expect(result.unassigned).not.toContain('u10');
+    }
+  });
+
+  it('팀수 + 인원수 모드에서도 고정이 지켜진다', () => {
+    const result = generateTeams(people(10), { team: 3, number: 2 }, undefined, [[], [], ['u1', 'u2']]);
+    if (!result.ok) throw new Error('unexpected');
+    expect(result.teams.map((t) => t.length)).toEqual([2, 2, 2]);
+    expect(sorted(result.teams)[2]).toEqual(['u1', 'u2']);
+    expect(result.unassigned).toHaveLength(4);
+  });
+
+  it('고정이 없으면 기존 결과와 같다', () => {
+    expect(generateTeams(people(7), { team: 3 }, noShuffle, [])).toEqual(
+      generateTeams(people(7), { team: 3 }, noShuffle),
+    );
+  });
+});
+
+describe('plannedSizes', () => {
+  it('빈 팀을 뺀 팀별 인원을 돌려준다', () => {
+    expect(plannedSizes(10, { team: 3 })).toEqual([4, 3, 3]);
+    expect(plannedSizes(5, { team: 3, number: 4 })).toEqual([4, 1]);
+    expect(plannedSizes(3, { number: 5 })).toEqual([]);
   });
 });
 

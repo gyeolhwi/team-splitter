@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ChannelType, type Guild, type VoiceBasedChannel, type VoiceState } from 'discord.js';
-import { generateTeams, type TeamOptions } from '../domain/team-generator.js';
+import { generateTeams, plannedSizes, type TeamOptions } from '../domain/team-generator.js';
 import { ERR } from '../messages.js';
 import type { Session, SessionStore } from '../store/db.js';
 
@@ -49,13 +49,41 @@ export class SessionService {
     return this.store.isHealthy();
   }
 
-  generate(lobby: VoiceBasedChannel, hostId: string, options: TeamOptions, excludeIds: Set<string>): GenerateOutcome {
+  /** 편성 대상: 로비에 있는 사람 중 봇과 제외한 사람을 뺀다. */
+  participants(lobby: VoiceBasedChannel, excludeIds: Set<string>) {
+    return lobby.members.filter((m) => !m.user.bot && !excludeIds.has(m.id));
+  }
+
+  /**
+   * fixed[i] 는 i번 팀에 먼저 넣을 사람이다. 로비에 없는 사람은 버린다.
+   */
+  generate(
+    lobby: VoiceBasedChannel,
+    hostId: string,
+    options: TeamOptions,
+    excludeIds: Set<string>,
+    fixed: readonly (readonly string[])[] = [],
+  ): GenerateOutcome {
     const guildId = lobby.guild.id;
-    const participantIds = lobby.members.filter((m) => !m.user.bot && !excludeIds.has(m.id)).map((m) => m.id);
+    const participantIds = this.participants(lobby, excludeIds).map((m) => m.id);
     if (participantIds.length < 2) {
       return { ok: false, reason: ERR.tooFew };
     }
-    const result = generateTeams(participantIds, options);
+    const pins = fixed.map((ids) => ids.filter((id) => participantIds.includes(id)));
+    const pinnedIds = pins.flat();
+    if (new Set(pinnedIds).size !== pinnedIds.length) {
+      return { ok: false, reason: ERR.pinDuplicate };
+    }
+    const sizes = plannedSizes(participantIds.length, options);
+    const overfull = pins.findIndex((ids, i) => ids.length > (sizes[i] ?? 0));
+    // 팝업을 연 뒤 인원이 줄어 팀 수가 줄면 없는 팀에 넣은 사람이 생긴다.
+    if (sizes.length > 0 && overfull >= sizes.length) {
+      return { ok: false, reason: ERR.pinChanged };
+    }
+    if (sizes.length > 0 && overfull >= 0) {
+      return { ok: false, reason: ERR.pinOverfull(overfull, sizes[overfull] ?? 0) };
+    }
+    const result = generateTeams(participantIds, options, undefined, pins);
     if (!result.ok) {
       return { ok: false, reason: ERR.shortBy(result.shortBy) };
     }
