@@ -83,6 +83,8 @@ export async function handleInteraction(interaction: Interaction, service: Sessi
   }
 
   if (interaction.isChatInputCommand()) {
+    // 글로벌 명령은 모두 위 COMMAND 에 있다. 서버에만 등록한 명령은 편성 옵션을 받는 팀짜기다.
+    if (interaction.commandGuildId) return handleGenerate(interaction, service, true);
     if (interaction.commandName === COMMAND.ping) return handlePing(interaction, service);
     if (interaction.commandName === COMMAND.generate) return handleGenerate(interaction, service);
     if (interaction.commandName === COMMAND.assemble) return handleAssembleCommand(interaction, service);
@@ -115,7 +117,11 @@ async function handlePing(interaction: ChatInputCommandInteraction<'cached'>, se
   await interaction.reply({ content: formatPing(health) });
 }
 
-async function handleGenerate(interaction: ChatInputCommandInteraction<'cached'>, service: SessionService) {
+async function handleGenerate(
+  interaction: ChatInputCommandInteraction<'cached'>,
+  service: SessionService,
+  withOptions = false,
+) {
   const lobby = interaction.member.voice.channel;
   if (!lobby) return replyError(interaction, ERR.notInVoice);
   if (lobby.type !== ChannelType.GuildVoice) return replyError(interaction, ERR.notGuildVoice);
@@ -124,7 +130,7 @@ async function handleGenerate(interaction: ChatInputCommandInteraction<'cached'>
   const number = interaction.options.getInteger(OPTION.number) ?? undefined;
   const excludeIds = parseMentions(interaction.options.getString(OPTION.exclude) ?? '');
 
-  if (OPERATOR_IDS.has(interaction.user.id)) {
+  if (withOptions && OPERATOR_IDS.has(interaction.user.id)) {
     const members = service.participants(lobby, excludeIds);
     const sizes = plannedSizes(members.size, { team, number });
     // 그냥 짜도 실패할 상황이면 평소 경로로 보내 같은 오류를 보여준다.
