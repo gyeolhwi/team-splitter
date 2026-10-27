@@ -26,27 +26,39 @@ export function shuffle<T>(items: readonly T[], rand: RandomInt = randomInt): T[
 /**
  * 참가자를 섞어서 팀을 나눈다. 규칙은 docs/spec.md 4번.
  * 빈 팀은 만들지 않는다. 팀이 하나도 안 나오면 몇 명이 부족한지 돌려준다.
+ * fixed[i] 는 i번 팀에 먼저 넣을 사람이다. 중복이 없고 팀 크기를 넘지 않는 건 호출하는 쪽이 보장한다.
  */
 export function generateTeams(
   participantIds: readonly string[],
   options: TeamOptions = {},
   rand: RandomInt = randomInt,
+  fixed: readonly (readonly string[])[] = [],
 ): TeamResult {
-  const people = shuffle(participantIds, rand);
-  const sizes = teamSizes(people.length, options);
+  const pinned = new Set(fixed.flat());
+  const people = shuffle(
+    participantIds.filter((id) => !pinned.has(id)),
+    rand,
+  );
+  const sizes = plannedSizes(participantIds.length, options);
 
-  const teams: string[][] = [];
+  if (sizes.length === 0) {
+    return { ok: false, shortBy: (options.number ?? 1) - participantIds.length };
+  }
+
   let cursor = 0;
-  for (const size of sizes) {
-    if (size === 0) continue;
-    teams.push(people.slice(cursor, cursor + size));
-    cursor += size;
-  }
-
-  if (teams.length === 0) {
-    return { ok: false, shortBy: (options.number ?? 1) - people.length };
-  }
+  const teams = sizes.map((size, i) => {
+    const own = fixed[i] ?? [];
+    const rest = people.slice(cursor, cursor + size - own.length);
+    cursor += rest.length;
+    // 먼저 넣은 사람이 늘 앞에 오지 않게 팀 안에서도 섞는다.
+    return own.length > 0 ? shuffle([...own, ...rest], rand) : rest;
+  });
   return { ok: true, teams, unassigned: people.slice(cursor) };
+}
+
+/** 인원 수와 옵션으로 정해지는 팀별 인원. 빈 팀은 뺀다. */
+export function plannedSizes(count: number, options: TeamOptions = {}): number[] {
+  return teamSizes(count, options).filter((size) => size > 0);
 }
 
 function teamSizes(count: number, { team, number }: TeamOptions): number[] {

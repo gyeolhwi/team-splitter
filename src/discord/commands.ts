@@ -4,23 +4,29 @@ import {
   ButtonStyle,
   ChannelType,
   EmbedBuilder,
+  LabelBuilder,
   MessageFlags,
+  ModalBuilder,
+  StringSelectMenuBuilder,
   escapeMarkdown,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Interaction,
+  type ModalSubmitInteraction,
   type RepliableInteraction,
   type VoiceBasedChannel,
 } from 'discord.js';
 import { findProblems, formatUptime, type HealthInput } from '../domain/health.js';
+import { plannedSizes, type TeamOptions } from '../domain/team-generator.js';
 import { ERR, MSG } from '../messages.js';
 import type { Session } from '../store/db.js';
-import type { AssembleOutcome, SessionService } from '../services/session.js';
+import type { AssembleOutcome, GenerateOutcome, SessionService } from '../services/session.js';
 
 const SPLIT_PREFIX = 'split:';
 const ASSEMBLE_PREFIX = 'assemble:';
 const END_PREFIX = 'end:';
 const RECRUIT_PREFIX = 'recruit:';
+const PIN_PREFIX = 'pin:';
 
 /** 슬래시 명령과 옵션 이름. scripts/register-commands.mjs 와 맞춘다. */
 const COMMAND = { ping: 'ping', generate: '팀짜기', assemble: '모으기', recruit: '구인', seek: '구직' } as const;
@@ -42,6 +48,31 @@ const INVITE_COOLDOWN_MS = 5 * 60_000;
 /** `구직자:누른사람` → 마지막으로 보낸 시각. 재시작하면 비워진다. */
 const lastInviteAt = new Map<string, number>();
 
+/** 편성 옵션 입력을 쓰는 사용자. 쉼표로 구분한다. */
+const OPERATOR_IDS = new Set(
+  (process.env.OPERATOR_IDS ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean),
+);
+/** 팝업 한 개에 칸이 5개까지라 팀은 4개까지만 고른다 */
+const MAX_PIN_TEAMS = 4;
+/** 선택 메뉴 하나에 넣을 수 있는 항목 수 */
+const MAX_PIN_OPTIONS = 25;
+/** 팝업을 닫고 제출하지 않았을 때 남은 정보를 지우는 시간 */
+const PIN_TIMEOUT_MS = 15 * 60_000;
+
+interface PinPick {
+  userId: string;
+  lobbyId: string;
+  options: TeamOptions;
+  excludeIds: Set<string>;
+  teamCount: number;
+  timer: NodeJS.Timeout;
+}
+/** 팝업이 열려 있는 편성. 키는 명령 interaction ID. 재시작하면 비워진다. */
+const pinPicks = new Map<string, PinPick>();
+
 /** 멘션은 이름으로만 보이고 알림은 가지 않게 한다. */
 const NO_PINGS = { parse: [] } as const;
 
@@ -52,6 +83,8 @@ export async function handleInteraction(interaction: Interaction, service: Sessi
   }
 
   if (interaction.isChatInputCommand()) {
+    // 글로벌 명령은 모두 위 COMMAND 에 있다. 서버에만 등록한 명령은 편성 옵션을 받는 팀짜기다.
+    if (interaction.commandGuildId) return handleGenerate(interaction, service, true);
     if (interaction.commandName === COMMAND.ping) return handlePing(interaction, service);
     if (interaction.commandName === COMMAND.generate) return handleGenerate(interaction, service);
     if (interaction.commandName === COMMAND.assemble) return handleAssembleCommand(interaction, service);
@@ -65,6 +98,10 @@ export async function handleInteraction(interaction: Interaction, service: Sessi
     if (interaction.customId.startsWith(ASSEMBLE_PREFIX)) return handleAssembleButton(interaction, service);
     if (interaction.customId.startsWith(END_PREFIX)) return handleEndButton(interaction, service);
     if (interaction.customId.startsWith(RECRUIT_PREFIX)) return handleRecruitButton(interaction);
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith(PIN_PREFIX)) {
+    return handlePinSubmit(interaction, service);
   }
 }
 
@@ -80,7 +117,11 @@ async function handlePing(interaction: ChatInputCommandInteraction<'cached'>, se
   await interaction.reply({ content: formatPing(health) });
 }
 
-async function handleGenerate(interaction: ChatInputCommandInteraction<'cached'>, service: SessionService) {
+async function handleGenerate(
+  interaction: ChatInputCommandInteraction<'cached'>,
+  service: SessionService,
+  withOptions = false,
+) {
   const lobby = interaction.member.voice.channel;
   if (!lobby) return replyError(interaction, ERR.notInVoice);
   if (lobby.type !== ChannelType.GuildVoice) return replyError(interaction, ERR.notGuildVoice);
@@ -89,15 +130,112 @@ async function handleGenerate(interaction: ChatInputCommandInteraction<'cached'>
   const number = interaction.options.getInteger(OPTION.number) ?? undefined;
   const excludeIds = parseMentions(interaction.options.getString(OPTION.exclude) ?? '');
 
+  if (withOptions && OPERATOR_IDS.has(interaction.user.id)) {
+    const members = service.participants(lobby, excludeIds);
+    const sizes = plannedSizes(members.size, { team, number });
+    // 그냥 짜도 실패할 상황이면 평소 경로로 보내 같은 오류를 보여준다.
+    if (members.size >= 2 && sizes.length > 0) {
+      // 팝업을 못 띄우면 평소 경로로 짠다.
+      if (await openPinPicker(interaction, lobby.id, { team, number }, excludeIds, members, sizes)) return;
+    }
+  }
+
   const outcome = service.generate(lobby, interaction.user.id, { team, number }, excludeIds);
   log('generate', outcome.ok ? outcome.session.id : '-', `lobby=${lobby.id}`, outcome.ok ? 'ok' : outcome.reason);
   if (!outcome.ok) return replyError(interaction, outcome.reason);
 
-  await interaction.reply({
-    content: formatDraft(outcome.session, lobby.name, outcome.unassigned, outcome.excluded),
+  await interaction.reply(draftReply(outcome, lobby.name));
+}
+
+function draftReply(outcome: Extract<GenerateOutcome, { ok: true }>, lobbyName: string) {
+  return {
+    content: formatDraft(outcome.session, lobbyName, outcome.unassigned, outcome.excluded),
     components: [buttonRow({ customId: SPLIT_PREFIX + outcome.session.id, label: BUTTON.split, style: ButtonStyle.Primary })],
     allowedMentions: NO_PINGS,
-  });
+  };
+}
+
+/**
+ * 팝업으로 팀별 편성 옵션을 받는다. 제출하면 그 응답으로 편성 결과를 올리고, 비워 제출하면 옵션 없이 짠다.
+ * 팝업을 띄웠으면 true.
+ */
+async function openPinPicker(
+  interaction: ChatInputCommandInteraction<'cached'>,
+  lobbyId: string,
+  options: TeamOptions,
+  excludeIds: Set<string>,
+  members: ReturnType<SessionService['participants']>,
+  sizes: number[],
+) {
+  const id = interaction.id;
+  const choices = [...members.values()]
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+    .slice(0, MAX_PIN_OPTIONS)
+    .map((m) => ({ label: truncate(m.displayName, 100), description: truncate(m.user.username, 100), value: m.id }));
+  const teamCount = Math.min(sizes.length, MAX_PIN_TEAMS);
+  const modal = new ModalBuilder()
+    .setCustomId(PIN_PREFIX + id)
+    .setTitle(MSG.pinTitle)
+    .addLabelComponents(
+      sizes.slice(0, teamCount).map((size, i) =>
+        new LabelBuilder()
+          .setLabel(MSG.pinTeam(i))
+          .setStringSelectMenuComponent(
+            new StringSelectMenuBuilder()
+              .setCustomId(`${PIN_PREFIX}${i}`)
+              .setRequired(false)
+              .setMinValues(0)
+              .setMaxValues(Math.min(size, choices.length))
+              .addOptions(choices),
+          ),
+      ),
+    );
+
+  const timer = setTimeout(() => pinPicks.delete(id), PIN_TIMEOUT_MS);
+  pinPicks.set(id, { userId: interaction.user.id, lobbyId, options, excludeIds, teamCount, timer });
+  try {
+    await interaction.showModal(modal);
+    return true;
+  } catch (error) {
+    console.error('[generate] 옵션 입력 실패', error);
+    clearTimeout(timer);
+    pinPicks.delete(id);
+    return false;
+  }
+}
+
+async function handlePinSubmit(interaction: ModalSubmitInteraction<'cached'>, service: SessionService) {
+  const id = interaction.customId.slice(PIN_PREFIX.length);
+  const pick = pinPicks.get(id);
+  // 팝업을 받은 사람이 아니거나 그새 목록에서 빠졌으면 끝난 요청으로 본다.
+  if (!pick || pick.userId !== interaction.user.id || !OPERATOR_IDS.has(interaction.user.id)) {
+    return replyError(interaction, ERR.stale);
+  }
+  clearTimeout(pick.timer);
+  pinPicks.delete(id);
+
+  const fixed = Array.from({ length: pick.teamCount }, (_, i) => [
+    ...(interaction.fields.getStringSelectValues(`${PIN_PREFIX}${i}`) ?? []),
+  ]);
+  const lobby = interaction.guild.channels.cache.get(pick.lobbyId);
+  const outcome: GenerateOutcome = lobby?.isVoiceBased()
+    ? service.generate(lobby, interaction.user.id, pick.options, pick.excludeIds, fixed)
+    : { ok: false, reason: ERR.lobbyGone };
+  const pinned = fixed.flat().length;
+  log(
+    'generate',
+    outcome.ok ? outcome.session.id : '-',
+    `lobby=${pick.lobbyId}`,
+    outcome.ok ? 'ok' : outcome.reason,
+    ...(pinned > 0 ? [`fixed=${pinned}`] : []),
+  );
+  if (!outcome.ok) return replyError(interaction, outcome.reason);
+  await interaction.reply(draftReply(outcome, lobby!.name));
+}
+
+/** 이모지처럼 두 칸짜리 글자가 반으로 잘리지 않게 글자 단위로 자른다. */
+function truncate(text: string, max: number) {
+  return Array.from(text).slice(0, max).join('');
 }
 
 async function handleSplit(interaction: ButtonInteraction<'cached'>, service: SessionService) {
