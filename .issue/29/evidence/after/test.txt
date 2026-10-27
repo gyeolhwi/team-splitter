@@ -1,0 +1,13 @@
+
+> team-splitter@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.3 /Users/gimgyeolhwi/Documents/dev/personal-projects/teamgenerate/.issue/worktrees/29-team-option-handling
+
+
+ Test Files  7 passed (7)
+      Tests  73 passed (73)
+   Start at  09:48:58
+   Duration  576ms (import 76%, transform 19%, tests 4%, worker 1%)
+
