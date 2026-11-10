@@ -1,0 +1,13 @@
+
+> team-splitter@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.3 /Users/gimgyeolhwi/Documents/dev/personal-projects/teamgenerate/.issue/worktrees/31
+
+
+ Test Files  8 passed (8)
+      Tests  76 passed (76)
+   Start at  21:53:59
+   Duration  442ms (import 73%, transform 20%, tests 5%, worker 1%)
+
