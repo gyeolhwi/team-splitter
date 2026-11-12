@@ -9,7 +9,7 @@ describe('parseMentions', () => {
   });
 
   it('멘션이 없으면 빈 집합', () => {
-    expect(parseMentions('철수 영희')).toEqual(new Set());
+    expect(parseMentions('유저5 유저6')).toEqual(new Set());
   });
 });
 
