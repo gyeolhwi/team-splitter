@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import {
   canDeletePost,
@@ -21,6 +22,9 @@ const DISCORD = 'https://discord.com';
 const MAX_FORM_BYTES = 32 * 1024;
 const SESSION_COOKIE = 'sid';
 const STATE_COOKIE = 'oauth_state';
+const DENIED = '이 Discord 계정은 아직 허용 목록에 없습니다. 관리자에게 Discord ID를 추가해 달라고 요청하세요.';
+/** 헤더 로고. Docker 이미지의 WORKDIR(/app) 기준 경로 */
+const LOGO_PATH = 'assets/persona/thumb-256.png';
 
 export interface BoardConfig extends Roles {
   /** 예: https://team-splitter.hwiii.com (끝 슬래시 없음) */
@@ -32,7 +36,7 @@ export interface BoardConfig extends Roles {
 
 const SECURITY_HEADERS = {
   'Content-Security-Policy':
-    "default-src 'none'; style-src 'unsafe-inline'; img-src https://cdn.discordapp.com; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https://cdn.discordapp.com; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'same-origin',
 };
@@ -87,6 +91,12 @@ export function createBoardServer(
 ): Server {
   const secure = cfg.baseUrl.startsWith('https://');
   const redirectUri = `${cfg.baseUrl}/auth/callback`;
+  let logo: Buffer | undefined;
+  try {
+    logo = readFileSync(LOGO_PATH);
+  } catch {
+    console.warn(`로고 파일이 없어 헤더 로고를 비웁니다: ${LOGO_PATH}`);
+  }
 
   function cookie(name: string, value: string, maxAgeSec: number): string {
     return `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${secure ? '; Secure' : ''}`;
@@ -144,7 +154,7 @@ export function createBoardServer(
     const clearState = cookie(STATE_COOKIE, '', 0);
     if (!isAllowed(cfg, me.id)) {
       console.warn(`게시판 진입 거부: ${me.id}`);
-      return send(res, 403, messagePage('접근 권한이 없습니다', '허용된 Discord 계정만 들어올 수 있습니다.'), {
+      return send(res, 403, messagePage('접근 권한이 없습니다', DENIED), {
         'Set-Cookie': clearState,
       });
     }
@@ -164,6 +174,10 @@ export function createBoardServer(
     const method = req.method ?? 'GET';
     const cookies = parseCookies(req.headers.cookie);
 
+    if (method === 'GET' && path === '/logo.png' && logo) {
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400', ...SECURITY_HEADERS });
+      return res.end(logo);
+    }
     if (method === 'GET' && path === '/login') return startLogin(res);
     if (method === 'GET' && path === '/auth/callback') return callback(url, cookies, res);
     if (method === 'GET' && path === '/logged-out') {
@@ -177,7 +191,7 @@ export function createBoardServer(
       throw new HttpError(401, '로그인이 필요합니다.');
     }
     // 목록에서 빠진 사람은 쿠키가 남아 있어도 막는다
-    if (!isAllowed(cfg, user.id)) throw new HttpError(403, '허용된 Discord 계정만 들어올 수 있습니다.');
+    if (!isAllowed(cfg, user.id)) throw new HttpError(403, DENIED);
     const who = { user, csrf: csrfToken(cfg.sessionSecret, sid) };
 
     if (method === 'GET') {
@@ -259,7 +273,9 @@ export function createBoardServer(
       if (status === 500) console.error('게시판 요청 처리 실패', error);
       if (res.headersSent) return res.end();
       const message = error instanceof HttpError ? error.message : '잠시 후 다시 시도해 주세요.';
-      send(res, status, messagePage(status === 403 ? '접근 권한이 없습니다' : '요청을 처리하지 못했습니다', message, { href: '/', label: '처음으로' }));
+      send(res, status, messagePage(status === 403 ? '접근 권한이 없습니다' : '요청을 처리하지 못했습니다', message,
+        // 허용 목록 밖이면 처음으로 가도 같은 화면이라 링크를 뺀다
+        message === DENIED ? undefined : { href: '/', label: '처음으로' }));
     });
   });
 }

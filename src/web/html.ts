@@ -1,5 +1,5 @@
 import type { User } from './auth.js';
-import { POST_STATUSES, STATUS_LABEL, type Comment, type Post } from './board-store.js';
+import { POST_STATUSES, STATUS_LABEL, type Comment, type Post, type PostStatus } from './board-store.js';
 
 export const TITLE_MAX = 100;
 export const BODY_MAX = 5000;
@@ -8,31 +8,169 @@ export const COMMENT_MAX = 2000;
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (value: unknown) => String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]!);
 
-const date = (ms: number) =>
-  new Date(ms).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' });
+const KST = { timeZone: 'Asia/Seoul' } as const;
+const shortParts = new Intl.DateTimeFormat('ko-KR', { ...KST, month: 'numeric', day: 'numeric' });
+/** 목록용 11.20 형식. 로캘 기본값(11. 20.)은 좁은 열에서 줄이 꺾인다 */
+const shortDate = (ms: number) => {
+  const parts = shortParts.formatToParts(ms);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value;
+  return `${get('month')}.${get('day')}`;
+};
+const longDate = (ms: number) =>
+  new Date(ms).toLocaleString('ko-KR', { ...KST, month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 const CSS = `
-:root{--bg:#f6f7f9;--card:#fff;--text:#1d2129;--muted:#6b7280;--line:#e5e7eb;--accent:#5865f2;--danger:#dc2626}
-@media (prefers-color-scheme:dark){:root{--bg:#16171a;--card:#202226;--text:#e8e9ec;--muted:#9aa0a8;--line:#33363c;--accent:#7c86ff;--danger:#f87171}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
-header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card)}
-header .brand{font-weight:700;color:inherit;text-decoration:none;margin-right:auto}
-main{max-width:760px;margin:0 auto;padding:20px 16px 48px}
-a{color:var(--accent)}h1{font-size:22px;margin:0 0 16px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:12px}
-.list{list-style:none;margin:0;padding:0}.list li{display:flex;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
-.list li a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit;text-decoration:none;font-weight:600}
-.meta{color:var(--muted);font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.avatar{width:22px;height:22px;border-radius:50%;vertical-align:middle}
-.badge{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid currentColor;white-space:nowrap}
-.s-open{color:#6b7280}.s-doing{color:#d97706}.s-done{color:#16a34a}.s-rejected{color:var(--danger)}
-.body{white-space:pre-wrap;word-break:break-word;margin:12px 0 0}
-form.inline{display:inline}input[type=text],textarea,select{width:100%;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
-textarea{min-height:160px;resize:vertical}label{display:block;font-weight:600;margin:12px 0 4px}
-button,.button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:8px 14px;background:var(--accent);color:#fff;cursor:pointer;text-decoration:none;display:inline-block}
-button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}button.danger{background:var(--danger)}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.row select{width:auto}
-.comment{border-top:1px solid var(--line);padding:12px 0}.empty{color:var(--muted);text-align:center;padding:24px 0}
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --ink: #202327;
+  --sub: #686d75;
+  --rule: #e4e6e9;
+  --field: #f4f5f6;
+  --on-ink: #ffffff;
+  --st-open: #686d75;
+  --st-doing: #a86400;
+  --st-done: #2d7a4b;
+  --st-rejected: #b23b2a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #18191b;
+    --ink: #e7e8ea;
+    --sub: #9a9fa6;
+    --rule: #2d3034;
+    --field: #202225;
+    --on-ink: #18191b;
+    --st-open: #9a9fa6;
+    --st-doing: #e0a24a;
+    --st-done: #5cb27f;
+    --st-rejected: #e57a68;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.6 system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-variant-numeric: tabular-nums;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+h1 { font-size: 20px; line-height: 1.4; margin: 0; }
+h2 { font-size: 15px; margin: 0; }
+
+/* 머리말 */
+.top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; text-decoration: none; margin-right: auto; }
+.brand img { width: 28px; height: 28px; border-radius: 6px; }
+.me { display: flex; align-items: center; gap: 8px; color: var(--sub); font-size: 14px; }
+.avatar { width: 20px; height: 20px; border-radius: 50%; vertical-align: -4px; }
+main { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
+
+/* 버튼과 입력 */
+.btn, button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  padding: 7px 14px;
+  background: var(--ink);
+  color: var(--on-ink);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+.quiet { background: transparent; color: var(--ink); border-color: var(--rule); }
+.danger { background: transparent; color: var(--st-rejected); border-color: var(--rule); }
+.text { background: none; border: 0; padding: 0; color: var(--sub); font-weight: 400; }
+.text:hover { color: var(--ink); text-decoration: underline; }
+input[type=text], textarea, select {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  background: var(--field);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+textarea { min-height: 200px; resize: vertical; }
+.comment-form textarea { min-height: 88px; }
+label { display: block; font-weight: 600; font-size: 14px; margin: 16px 0 6px; }
+form.inline { display: inline; }
+
+/* 상태 표시 */
+.st { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.st::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
+.st-open { color: var(--st-open); }
+.st-doing { color: var(--st-doing); }
+.st-done { color: var(--st-done); }
+.st-rejected { color: var(--st-rejected); }
+
+/* 목록 */
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 16px; }
+.count { color: var(--sub); font-weight: 400; margin-left: 6px; }
+.rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ink); }
+.row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--rule);
+  text-decoration: none;
+}
+.row:hover .title { text-decoration: underline; }
+.title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .info { display: flex; gap: 12px; color: var(--sub); font-size: 14px; white-space: nowrap; }
+.row time { color: var(--sub); font-size: 14px; text-align: right; white-space: nowrap; }
+.empty { color: var(--sub); padding: 32px 4px; border-bottom: 1px solid var(--rule); }
+
+/* 상세 */
+.back { display: inline-block; color: var(--sub); font-size: 14px; margin-bottom: 16px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--sub); font-size: 14px; margin: 10px 0 0; }
+.body { white-space: pre-wrap; max-width: 68ch; margin: 20px 0 0; }
+.actions { display: flex; gap: 8px; margin-top: 20px; }
+.status-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+.status-form label { margin: 0 8px 0 0; color: var(--sub); }
+.status-form select { width: auto; }
+.comments { margin-top: 40px; border-top: 1px solid var(--ink); padding-top: 16px; }
+.comment { padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.comment .meta { margin: 0; }
+.comment .body { margin-top: 6px; }
+.form-actions { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+.form-actions a { color: var(--sub); font-size: 14px; }
+.notice p { color: var(--sub); max-width: 52ch; }
+
+@media (max-width: 600px) {
+  .me .name { display: none; }
+  .row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "title title title" "st info time";
+    gap: 4px 12px;
+    padding: 12px 2px;
+  }
+  .row .st { grid-area: st; font-size: 13px; }
+  .row .title { grid-area: title; white-space: normal; }
+  .row .info { grid-area: info; }
+  .row time { grid-area: time; }
+}
 `;
 
 interface PageUser {
@@ -41,34 +179,35 @@ interface PageUser {
 }
 
 function layout(title: string, content: string, who?: PageUser): string {
-  const nav = who
-    ? `<span class="meta"><img class="avatar" src="${esc(who.user.avatar)}" alt="">${esc(who.user.name)}</span>
-       <form class="inline" method="post" action="/logout"><input type="hidden" name="_csrf" value="${esc(who.csrf)}"><button class="ghost">로그아웃</button></form>`
+  const me = who
+    ? `<div class="me"><img class="avatar" src="${esc(who.user.avatar)}" alt=""><span class="name">${esc(who.user.name)}</span>
+        <form class="inline" method="post" action="/logout">${csrfField(who.csrf)}<button class="text">로그아웃</button></form></div>`
     : '';
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} · 배근이 건의함</title><style>${CSS}</style></head>
-<body><header><a class="brand" href="/">배근이 건의함</a>${nav}</header><main>${content}</main></body></html>`;
+<title>${esc(title)} - 배근이 건의함</title><style>${CSS}</style></head>
+<body><header class="top"><a class="brand" href="/"><img src="/logo.png" alt="">배근이 건의함</a>${me}</header>
+<main>${content}</main></body></html>`;
 }
 
-const badge = (status: Post['status']) => `<span class="badge s-${status}">${STATUS_LABEL[status]}</span>`;
-const author = (p: { authorAvatar: string; authorName: string; createdAt: number }) =>
-  `<img class="avatar" src="${esc(p.authorAvatar)}" alt="">${esc(p.authorName)} · ${date(p.createdAt)}`;
+const status = (s: PostStatus) => `<span class="st st-${s}">${STATUS_LABEL[s]}</span>`;
+const byline = (p: { authorAvatar: string; authorName: string; createdAt: number }) =>
+  `<span><img class="avatar" src="${esc(p.authorAvatar)}" alt=""> ${esc(p.authorName)}</span><time>${longDate(p.createdAt)}</time>`;
 const csrfField = (csrf: string) => `<input type="hidden" name="_csrf" value="${esc(csrf)}">`;
 
 export function listPage(who: PageUser, posts: Post[]): string {
-  const items = posts.length
-    ? `<ul class="list">${posts
+  const rows = posts.length
+    ? `<ol class="rows">${posts
         .map(
-          (p) => `<li>${badge(p.status)}<a href="/posts/${p.id}">${esc(p.title)}</a>
-          <span class="meta">${p.commentCount ? `💬 ${p.commentCount} · ` : ''}${esc(p.authorName)}</span></li>`,
+          (p) => `<li><a class="row" href="/posts/${p.id}">${status(p.status)}<span class="title">${esc(p.title)}</span>
+            <span class="info">${p.commentCount ? `<span>댓글 ${p.commentCount}</span>` : ''}<span>${esc(p.authorName)}</span></span>
+            <time>${shortDate(p.createdAt)}</time></a></li>`,
         )
-        .join('')}</ul>`
-    : '<p class="empty">아직 건의가 없습니다. 첫 건의를 남겨 주세요.</p>';
+        .join('')}</ol>`
+    : '<p class="empty">아직 올라온 건의가 없습니다. 바라는 점이 있으면 첫 건의를 써 주세요.</p>';
   return layout(
     '목록',
-    `<div class="row" style="margin:0 0 16px"><h1 style="margin:0;flex:1">건의사항</h1><a class="button" href="/new">건의하기</a></div>
-     <div class="card">${items}</div>`,
+    `<div class="bar"><h1>건의<span class="count">${posts.length}</span></h1><a class="btn" href="/new">건의 쓰기</a></div>${rows}`,
     who,
   );
 }
@@ -79,48 +218,45 @@ export function detailPage(
   comments: Comment[],
   can: { edit: boolean; remove: boolean; setStatus: boolean },
 ): string {
-  const statusForm = can.setStatus
-    ? `<form class="row status-form" method="post" action="/posts/${post.id}/status">${csrfField(who.csrf)}
-        <select name="status" aria-label="처리 상태">${POST_STATUSES.map(
-          (s) => `<option value="${s}"${s === post.status ? ' selected' : ''}>${STATUS_LABEL[s]}</option>`,
-        ).join('')}</select><button>상태 변경</button></form>`
-    : '';
   const actions = [
-    can.edit ? `<a class="button" href="/posts/${post.id}/edit">수정</a>` : '',
+    can.edit ? `<a class="btn quiet" href="/posts/${post.id}/edit">수정</a>` : '',
     can.remove
       ? `<form class="inline" method="post" action="/posts/${post.id}/delete">${csrfField(who.csrf)}<button class="danger">삭제</button></form>`
       : '',
   ].join('');
-  const list = comments.length
-    ? comments
-        .map((c) => `<div class="comment" id="c${c.id}"><div class="meta">${author(c)}</div><p class="body">${esc(c.body)}</p></div>`)
-        .join('')
-    : '<p class="empty">댓글이 없습니다.</p>';
+  const statusForm = can.setStatus
+    ? `<form class="status-form" method="post" action="/posts/${post.id}/status">${csrfField(who.csrf)}
+        <label for="status">처리 상태</label><select id="status" name="status">${POST_STATUSES.map(
+          (s) => `<option value="${s}"${s === post.status ? ' selected' : ''}>${STATUS_LABEL[s]}</option>`,
+        ).join('')}</select><button class="quiet">바꾸기</button></form>`
+    : '';
+  const list = comments
+    .map((c) => `<div class="comment" id="c${c.id}"><p class="meta">${byline(c)}</p><p class="body">${esc(c.body)}</p></div>`)
+    .join('');
   return layout(
     post.title,
-    `<article class="card"><div class="meta">${badge(post.status)} ${author(post)}${
-      post.updatedAt !== post.createdAt ? ' · 수정됨' : ''
-    }</div>
-      <h1 style="margin:8px 0 0">${esc(post.title)}</h1><p class="body">${esc(post.body)}</p>
-      ${actions ? `<div class="row">${actions}</div>` : ''}${statusForm}</article>
-     <section class="card"><h2 style="font-size:16px;margin:0">댓글 ${comments.length}</h2>${list}
-      <form method="post" action="/posts/${post.id}/comments">${csrfField(who.csrf)}
-        <label for="comment">댓글 쓰기</label><textarea id="comment" name="body" maxlength="${COMMENT_MAX}" required style="min-height:80px"></textarea>
-        <div class="row"><button>등록</button></div></form></section>
-     <a href="/">← 목록으로</a>`,
+    `<a class="back" href="/">목록으로</a>
+     <article><h1>${esc(post.title)}</h1>
+       <p class="meta">${status(post.status)}${byline(post)}${post.updatedAt !== post.createdAt ? '<span>수정됨</span>' : ''}</p>
+       <p class="body">${esc(post.body)}</p>
+       ${actions ? `<div class="actions">${actions}</div>` : ''}${statusForm}</article>
+     <section class="comments"><h2>댓글 ${comments.length}</h2>${list}
+       <form class="comment-form" method="post" action="/posts/${post.id}/comments">${csrfField(who.csrf)}
+         <label for="comment">댓글</label><textarea id="comment" name="body" maxlength="${COMMENT_MAX}" required></textarea>
+         <div class="form-actions"><button>댓글 달기</button></div></form></section>`,
     who,
   );
 }
 
-export function formPage(who: PageUser, post?: Pick<Post, 'id' | 'title' | 'body'>, error?: string): string {
-  const action = post?.id ? `/posts/${post.id}/edit` : '/posts';
+export function formPage(who: PageUser, post?: Pick<Post, 'id' | 'title' | 'body'>): string {
+  const editing = Boolean(post?.id);
   return layout(
-    post?.id ? '수정' : '건의하기',
-    `<h1>${post?.id ? '건의 수정' : '건의하기'}</h1>${error ? `<p class="s-rejected">${esc(error)}</p>` : ''}
-     <form class="card" method="post" action="${action}">${csrfField(who.csrf)}
+    editing ? '건의 수정' : '건의 쓰기',
+    `<h1>${editing ? '건의 수정' : '건의 쓰기'}</h1>
+     <form method="post" action="${editing ? `/posts/${post!.id}/edit` : '/posts'}">${csrfField(who.csrf)}
        <label for="title">제목</label><input type="text" id="title" name="title" maxlength="${TITLE_MAX}" required value="${esc(post?.title ?? '')}">
        <label for="body">내용</label><textarea id="body" name="body" maxlength="${BODY_MAX}" required>${esc(post?.body ?? '')}</textarea>
-       <div class="row"><button>${post?.id ? '저장' : '등록'}</button><a href="${post?.id ? `/posts/${post.id}` : '/'}">취소</a></div>
+       <div class="form-actions"><button>${editing ? '수정 저장' : '건의 올리기'}</button><a href="${editing ? `/posts/${post!.id}` : '/'}">취소</a></div>
      </form>`,
     who,
   );
@@ -129,8 +265,8 @@ export function formPage(who: PageUser, post?: Pick<Post, 'id' | 'title' | 'body
 export function messagePage(title: string, message: string, link?: { href: string; label: string }): string {
   return layout(
     title,
-    `<div class="card" style="text-align:center"><h1>${esc(title)}</h1><p>${esc(message)}</p>${
-      link ? `<a class="button" href="${esc(link.href)}">${esc(link.label)}</a>` : ''
+    `<div class="notice"><h1>${esc(title)}</h1><p>${esc(message)}</p>${
+      link ? `<a class="btn quiet" href="${esc(link.href)}">${esc(link.label)}</a>` : ''
     }</div>`,
   );
 }
