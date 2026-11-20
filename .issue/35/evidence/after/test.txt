@@ -1,0 +1,5 @@
+# after — 2026-11-20 15:20 · 3f5b3bd
+
+      Tests  91 passed (91)
+$ grep -c "style=\"|5865f2|💬" src/web/html.ts
+0
