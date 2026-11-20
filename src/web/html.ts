@@ -4,9 +4,6 @@ import { POST_STATUSES, STATUS_LABEL, type Comment, type Post, type PostStatus }
 export const TITLE_MAX = 100;
 export const BODY_MAX = 5000;
 export const COMMENT_MAX = 2000;
-/** 상태 선택 즉시 저장. CSP 는 이 문자열의 해시만 허용한다 */
-export const STATUS_SCRIPT =
-  "document.querySelector('.status-form select')?.addEventListener('change',(e)=>e.target.form.requestSubmit());";
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (value: unknown) => String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]!);
@@ -77,7 +74,7 @@ h2 { font-size: 15px; margin: 0; }
 .brand img { width: 28px; height: 28px; border-radius: 6px; }
 .me { display: flex; align-items: center; gap: 8px; color: var(--sub); font-size: 14px; }
 .avatar { width: 20px; height: 20px; border-radius: 50%; vertical-align: -4px; }
-main { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
+main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
 
 /* 버튼과 입력 */
 .btn, button {
@@ -114,15 +111,33 @@ form.inline { display: inline; }
 /* 상태 표시 */
 .st { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; }
 .st::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
-.st-open { color: var(--st-open); }
-.st-doing { color: var(--st-doing); }
-.st-done { color: var(--st-done); }
-.st-rejected { color: var(--st-rejected); }
+.st-open { color: var(--st-open); --c: var(--st-open); }
+.st-doing { color: var(--st-doing); --c: var(--st-doing); }
+.st-done { color: var(--st-done); --c: var(--st-done); }
+.st-rejected { color: var(--st-rejected); --c: var(--st-rejected); }
 
 /* 목록 */
 .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 16px; }
-.count { color: var(--sub); font-weight: 400; margin-left: 6px; }
-.rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ink); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--sub);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink); }
+.tabs .st { color: inherit; }
+.tabs .st::before { background: var(--c); }
+.tab .n { color: var(--sub); font-weight: 400; }
+.rows { list-style: none; margin: 0; padding: 0; }
 .row {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr) auto auto;
@@ -138,24 +153,80 @@ form.inline { display: inline; }
 .row time { color: var(--sub); font-size: 14px; text-align: right; white-space: nowrap; }
 .empty { color: var(--sub); padding: 32px 4px; border-bottom: 1px solid var(--rule); }
 
-/* 상세 */
-.back { display: inline-block; color: var(--sub); font-size: 14px; margin-bottom: 16px; }
-.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--sub); font-size: 14px; margin: 10px 0 0; }
-.body { white-space: pre-wrap; max-width: 68ch; margin: 20px 0 0; }
-.actions { display: flex; gap: 8px; margin-top: 20px; }
-.status-form { display: inline-flex; align-items: center; gap: 6px; }
-.status-form select { width: auto; padding: 2px 8px; font-size: 14px; font-weight: 600; background: var(--bg); }
-.status-form button { padding: 2px 10px; }
-.comments { margin-top: 40px; border-top: 1px solid var(--ink); padding-top: 16px; }
+/* 상세: 본문은 왼쪽, 상태와 정보는 오른쪽 패널 */
+.crumb { display: flex; gap: 8px; color: var(--sub); font-size: 14px; margin-bottom: 12px; }
+.crumb a { color: var(--sub); }
+.detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 248px;
+  grid-template-areas: "title props" "body props" "comments props";
+  grid-template-rows: auto auto 1fr;
+  column-gap: 48px;
+  align-items: start;
+}
+.detail-title { grid-area: title; font-size: 24px; line-height: 1.35; }
+.detail > .body { grid-area: body; }
+.detail > .comments { grid-area: comments; }
+.props {
+  grid-area: props;
+  display: grid;
+  gap: 18px;
+  padding-left: 24px;
+  border-left: 1px solid var(--rule);
+  position: sticky;
+  top: 24px;
+}
+.prop { display: grid; gap: 6px; font-size: 14px; }
+.prop .k { color: var(--sub); font-size: 13px; }
+.status-form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.status-form .pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--sub);
+  border: 1px solid var(--rule);
+}
+.status-form .pick::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+.status-form .pick:hover { border-color: var(--c); color: var(--ink); }
+.status-form .pick[aria-pressed="true"] {
+  color: var(--c);
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 10%, transparent);
+}
+.prop-actions { display: flex; gap: 8px; padding-top: 18px; border-top: 1px solid var(--rule); }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--sub); font-size: 14px; margin: 0; }
+.body { white-space: pre-wrap; max-width: 68ch; margin: 16px 0 0; }
+.comments { margin-top: 40px; border-top: 1px solid var(--rule); padding-top: 16px; }
 .comment { padding: 14px 0; border-bottom: 1px solid var(--rule); }
 .comment .meta { margin: 0; }
 .comment .body { margin-top: 6px; }
 .form-actions { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
 .form-actions a { color: var(--sub); font-size: 14px; }
 .notice p { color: var(--sub); max-width: 52ch; }
+main > form { max-width: 720px; }
 
+@media (max-width: 860px) {
+  /* 패널을 풀어 항목마다 제자리에: 제목, 상태, 작성자|작성일, 본문, 수정·삭제, 댓글 */
+  .detail {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "title title" "status status" "author date" "body body" "actions actions" "comments comments";
+    grid-template-rows: none;
+    column-gap: 16px;
+  }
+  .props { display: contents; }
+  .prop-status { grid-area: status; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--rule); }
+  .prop-author { grid-area: author; margin-top: 14px; }
+  .prop-date { grid-area: date; margin-top: 14px; }
+  .detail > .body { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--rule); }
+  .prop-actions { grid-area: actions; margin-top: 18px; padding-top: 0; border-top: 0; }
+  .status-form { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 @media (max-width: 600px) {
   .me .name { display: none; }
+  .detail-title { font-size: 21px; }
+  .status-form .pick { padding: 6px 8px; justify-content: center; }
   .row {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: "title title title" "st info time";
@@ -191,19 +262,27 @@ const byline = (p: { authorAvatar: string; authorName: string; createdAt: number
   `<span><img class="avatar" src="${esc(p.authorAvatar)}" alt=""> ${esc(p.authorName)}</span><time>${longDate(p.createdAt)}</time>`;
 const csrfField = (csrf: string) => `<input type="hidden" name="_csrf" value="${esc(csrf)}">`;
 
-export function listPage(who: PageUser, posts: Post[]): string {
-  const rows = posts.length
-    ? `<ol class="rows">${posts
+export function listPage(who: PageUser, posts: Post[], filter?: PostStatus): string {
+  const shown = filter ? posts.filter((p) => p.status === filter) : posts;
+  const tab = (href: string, label: string, n: number, current: boolean) =>
+    `<a class="tab" href="${href}"${current ? ' aria-current="page"' : ''}>${label}<span class="n">${n}</span></a>`;
+  const tabs = `<nav class="tabs" aria-label="상태별 보기">${tab('/', '전체', posts.length, !filter)}${POST_STATUSES.map((s) =>
+    tab(`/?status=${s}`, status(s), posts.filter((p) => p.status === s).length, s === filter),
+  ).join('')}</nav>`;
+  const rows = shown.length
+    ? `<ol class="rows">${shown
         .map(
           (p) => `<li><a class="row" href="/posts/${p.id}">${status(p.status)}<span class="title">${esc(p.title)}</span>
             <span class="info">${p.commentCount ? `<span>댓글 ${p.commentCount}</span>` : ''}<span>${esc(p.authorName)}</span></span>
             <time>${shortDate(p.createdAt)}</time></a></li>`,
         )
         .join('')}</ol>`
-    : '<p class="empty">아직 올라온 건의가 없습니다. 바라는 점이 있으면 첫 건의를 써 주세요.</p>';
+    : `<p class="empty">${
+        filter ? `${STATUS_LABEL[filter]} 상태인 건의가 없습니다.` : '아직 올라온 건의가 없습니다. 바라는 점이 있으면 첫 건의를 써 주세요.'
+      }</p>`;
   return layout(
     '목록',
-    `<div class="bar"><h1>건의<span class="count">${posts.length}</span></h1><a class="btn" href="/new">건의 쓰기</a></div>${rows}`,
+    `<div class="bar"><h1>건의</h1><a class="btn" href="/new">건의 쓰기</a></div>${tabs}${rows}`,
     who,
   );
 }
@@ -220,27 +299,36 @@ export function detailPage(
       ? `<form class="inline" method="post" action="/posts/${post.id}/delete">${csrfField(who.csrf)}<button class="danger">삭제</button></form>`
       : '',
   ].join('');
-  // 관리자는 상태 표시 자리에서 바로 바꾼다. 선택하면 저장되고, JS 가 꺼져 있으면 버튼이 대신 나온다
+  // 관리자는 누르면 바로 저장되는 4칸 버튼, 나머지는 상태 표시만
   const statusControl = can.setStatus
-    ? `<form class="status-form" method="post" action="/posts/${post.id}/status">${csrfField(who.csrf)}
-        <select class="st-${post.status}" name="status" aria-label="처리 상태">${POST_STATUSES.map(
-          (s) => `<option value="${s}"${s === post.status ? ' selected' : ''}>${STATUS_LABEL[s]}</option>`,
-        ).join('')}</select><noscript><button class="quiet">바꾸기</button></noscript></form>`
+    ? `<form class="status-form" role="group" aria-label="처리 상태" method="post" action="/posts/${post.id}/status">${csrfField(who.csrf)}${POST_STATUSES.map(
+        (s) =>
+          `<button class="pick st-${s}" name="status" value="${s}" aria-pressed="${s === post.status}">${STATUS_LABEL[s]}</button>`,
+      ).join('')}</form>`
     : status(post.status);
+  const prop = (key: string, label: string, value: string) =>
+    `<div class="prop prop-${key}"><span class="k">${label}</span>${value}</div>`;
+  const edited = post.updatedAt !== post.createdAt ? ' <span class="k">(수정됨)</span>' : '';
   const list = comments
     .map((c) => `<div class="comment" id="c${c.id}"><p class="meta">${byline(c)}</p><p class="body">${esc(c.body)}</p></div>`)
     .join('');
   return layout(
     post.title,
-    `<a class="back" href="/">목록으로</a>
-     <article><h1>${esc(post.title)}</h1>
-       <div class="meta">${statusControl}${byline(post)}${post.updatedAt !== post.createdAt ? '<span>수정됨</span>' : ''}</div>
+    `<nav class="crumb" aria-label="위치"><a href="/">건의 목록</a><span>#${post.id}</span></nav>
+     <div class="detail">
+       <h1 class="detail-title">${esc(post.title)}</h1>
+       <aside class="props" aria-label="건의 정보">
+         ${prop('status', '상태', statusControl)}
+         ${prop('author', '작성자', `<span><img class="avatar" src="${esc(post.authorAvatar)}" alt=""> ${esc(post.authorName)}</span>`)}
+         ${prop('date', '작성일', `<span><time>${longDate(post.createdAt)}</time>${edited}</span>`)}
+         ${actions ? `<div class="prop-actions">${actions}</div>` : ''}
+       </aside>
        <p class="body">${esc(post.body)}</p>
-       ${actions ? `<div class="actions">${actions}</div>` : ''}</article>${can.setStatus ? `<script>${STATUS_SCRIPT}</script>` : ''}
-     <section class="comments"><h2>댓글 ${comments.length}</h2>${list}
-       <form class="comment-form" method="post" action="/posts/${post.id}/comments">${csrfField(who.csrf)}
-         <label for="comment">댓글</label><textarea id="comment" name="body" maxlength="${COMMENT_MAX}" required></textarea>
-         <div class="form-actions"><button>댓글 달기</button></div></form></section>`,
+       <section class="comments"><h2>댓글 ${comments.length}</h2>${list}
+         <form class="comment-form" method="post" action="/posts/${post.id}/comments">${csrfField(who.csrf)}
+           <label for="comment">댓글</label><textarea id="comment" name="body" maxlength="${COMMENT_MAX}" required></textarea>
+           <div class="form-actions"><button>댓글 달기</button></div></form></section>
+     </div>`,
     who,
   );
 }
