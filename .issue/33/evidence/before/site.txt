@@ -1,0 +1,10 @@
+# before — 2026-11-20 12:58 · a14ff01
+$ curl -sS -o /dev/null -w "%{http_code}" https://team-splitter.hwiii.com
+curl: (35) LibreSSL/3.3.6: error:1404B438:SSL routines:ST_CONNECT:tlsv1 alert internal error
+000
+
+$ ls src/web
+ls: src/web: No such file or directory
+
+$ grep -c "web:" compose.yml
+0
