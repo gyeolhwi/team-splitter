@@ -226,6 +226,9 @@ main > form { max-width: 720px; }
 @media (max-width: 600px) {
   .me .name { display: none; }
   .detail-title { font-size: 21px; }
+  /* 360px 에서도 상태 탭 5개가 한 줄에 들어가게 (개수가 두 자리면 가로 스크롤) */
+  .tabs { gap: 0; justify-content: space-between; }
+  .tab { gap: 4px; padding: 8px 6px; font-size: 13px; }
   .status-form .pick { padding: 6px 8px; justify-content: center; }
   .row {
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -252,8 +255,8 @@ function layout(title: string, content: string, who?: PageUser): string {
     : '';
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} - 배근이 건의함</title><style>${CSS}</style></head>
-<body><header class="top"><a class="brand" href="/"><img src="/logo.png" alt="">배근이 건의함</a>${me}</header>
+<title>${esc(title)} - 배근이 피드백</title><style>${CSS}</style></head>
+<body><header class="top"><a class="brand" href="/"><img src="/logo.png" alt="">배근이 피드백</a>${me}</header>
 <main>${content}</main></body></html>`;
 }
 
@@ -278,11 +281,11 @@ export function listPage(who: PageUser, posts: Post[], filter?: PostStatus): str
         )
         .join('')}</ol>`
     : `<p class="empty">${
-        filter ? `${STATUS_LABEL[filter]} 상태인 건의가 없습니다.` : '아직 올라온 건의가 없습니다. 바라는 점이 있으면 첫 건의를 써 주세요.'
+        filter ? `${STATUS_LABEL[filter]} 상태인 피드백이 없습니다.` : '아직 올라온 피드백이 없습니다. 불편한 점이나 바라는 점을 남겨 주세요.'
       }</p>`;
   return layout(
     '목록',
-    `<div class="bar"><h1>건의</h1><a class="btn" href="/new">건의 쓰기</a></div>${tabs}${rows}`,
+    `<div class="bar"><h1>피드백</h1><a class="btn" href="/new">피드백 남기기</a></div>${tabs}${rows}`,
     who,
   );
 }
@@ -314,10 +317,10 @@ export function detailPage(
     .join('');
   return layout(
     post.title,
-    `<nav class="crumb" aria-label="위치"><a href="/">건의 목록</a><span>#${post.id}</span></nav>
+    `<nav class="crumb" aria-label="위치"><a href="/">피드백 목록</a><span>#${post.id}</span></nav>
      <div class="detail">
        <h1 class="detail-title">${esc(post.title)}</h1>
-       <aside class="props" aria-label="건의 정보">
+       <aside class="props" aria-label="피드백 정보">
          ${prop('status', '상태', statusControl)}
          ${prop('author', '작성자', `<span><img class="avatar" src="${esc(post.authorAvatar)}" alt=""> ${esc(post.authorName)}</span>`)}
          ${prop('date', '작성일', `<span><time>${longDate(post.createdAt)}</time>${edited}</span>`)}
@@ -336,12 +339,12 @@ export function detailPage(
 export function formPage(who: PageUser, post?: Pick<Post, 'id' | 'title' | 'body'>): string {
   const editing = Boolean(post?.id);
   return layout(
-    editing ? '건의 수정' : '건의 쓰기',
-    `<h1>${editing ? '건의 수정' : '건의 쓰기'}</h1>
+    editing ? '피드백 수정' : '피드백 남기기',
+    `<h1>${editing ? '피드백 수정' : '피드백 남기기'}</h1>
      <form method="post" action="${editing ? `/posts/${post!.id}/edit` : '/posts'}">${csrfField(who.csrf)}
        <label for="title">제목</label><input type="text" id="title" name="title" maxlength="${TITLE_MAX}" required value="${esc(post?.title ?? '')}">
        <label for="body">내용</label><textarea id="body" name="body" maxlength="${BODY_MAX}" required>${esc(post?.body ?? '')}</textarea>
-       <div class="form-actions"><button>${editing ? '수정 저장' : '건의 올리기'}</button><a href="${editing ? `/posts/${post!.id}` : '/'}">취소</a></div>
+       <div class="form-actions"><button>${editing ? '수정 저장' : '피드백 보내기'}</button><a href="${editing ? `/posts/${post!.id}` : '/'}">취소</a></div>
      </form>`,
     who,
   );

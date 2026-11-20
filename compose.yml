@@ -12,7 +12,7 @@ services:
         max-size: 10m
         max-file: "3"
 
-  # 건의 게시판. 외부 연결은 서버의 _proxy(Caddy)가 proxy 네트워크로 한다.
+  # 피드백 게시판. 외부 연결은 서버의 _proxy(Caddy)가 proxy 네트워크로 한다.
   web:
     build: .
     restart: unless-stopped

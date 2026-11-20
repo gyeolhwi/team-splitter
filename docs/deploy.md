@@ -96,7 +96,7 @@ docker compose logs -f --tail 50   # "로그인 완료: 배근이#..." 가 보�
 npm run register
 ```
 
-## 8. 건의 게시판 (`https://team-splitter.hwiii.com`)
+## 8. 피드백 게시판 (`https://team-splitter.hwiii.com`)
 
 `compose.yml`의 `web` 서비스다. 봇과 같은 이미지에서 `dist/web/main.js`를 실행하고, 서버의 `_proxy` Caddy가 HTTPS를 붙인다.
 Discord로 로그인하면 `.env`의 `ALLOWED_IDS`와 `ADMIN_ID`에 있는 계정만 들어올 수 있다.
