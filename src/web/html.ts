@@ -205,6 +205,7 @@ form.inline { display: inline; }
 .form-actions { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
 .form-actions a { color: var(--sub); font-size: 14px; }
 .notice p { color: var(--sub); max-width: 52ch; }
+main > form { max-width: 720px; }
 
 @media (max-width: 860px) {
   /* 패널을 풀어 항목마다 제자리에: 제목, 상태, 작성자|작성일, 본문, 수정·삭제, 댓글 */
@@ -300,7 +301,7 @@ export function detailPage(
   ].join('');
   // 관리자는 누르면 바로 저장되는 4칸 버튼, 나머지는 상태 표시만
   const statusControl = can.setStatus
-    ? `<form class="status-form" method="post" action="/posts/${post.id}/status">${csrfField(who.csrf)}${POST_STATUSES.map(
+    ? `<form class="status-form" role="group" aria-label="처리 상태" method="post" action="/posts/${post.id}/status">${csrfField(who.csrf)}${POST_STATUSES.map(
         (s) =>
           `<button class="pick st-${s}" name="status" value="${s}" aria-pressed="${s === post.status}">${STATUS_LABEL[s]}</button>`,
       ).join('')}</form>`

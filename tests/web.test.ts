@@ -190,6 +190,7 @@ describe('board server', () => {
     const html = await res.text();
     expect(html.match(/name="status" value="/g)).toHaveLength(4);
     expect(html).toContain('value="open" aria-pressed="true"');
+    expect(html).toContain('role="group" aria-label="처리 상태"');
     expect(html).not.toContain('<script');
     expect(res.headers.get('content-security-policy')).not.toContain('script-src');
   });
