@@ -4,6 +4,9 @@ import { POST_STATUSES, STATUS_LABEL, type Comment, type Post, type PostStatus }
 export const TITLE_MAX = 100;
 export const BODY_MAX = 5000;
 export const COMMENT_MAX = 2000;
+/** 상태 선택 즉시 저장. CSP 는 이 문자열의 해시만 허용한다 */
+export const STATUS_SCRIPT =
+  "document.querySelector('.status-form select')?.addEventListener('change',(e)=>e.target.form.requestSubmit());";
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (value: unknown) => String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]!);
@@ -140,16 +143,9 @@ form.inline { display: inline; }
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--sub); font-size: 14px; margin: 10px 0 0; }
 .body { white-space: pre-wrap; max-width: 68ch; margin: 20px 0 0; }
 .actions { display: flex; gap: 8px; margin-top: 20px; }
-.status-form {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--rule);
-}
-.status-form label { margin: 0 8px 0 0; color: var(--sub); }
-.status-form select { width: auto; }
+.status-form { display: inline-flex; align-items: center; gap: 6px; }
+.status-form select { width: auto; padding: 2px 8px; font-size: 14px; font-weight: 600; background: var(--bg); }
+.status-form button { padding: 2px 10px; }
 .comments { margin-top: 40px; border-top: 1px solid var(--ink); padding-top: 16px; }
 .comment { padding: 14px 0; border-bottom: 1px solid var(--rule); }
 .comment .meta { margin: 0; }
@@ -224,12 +220,13 @@ export function detailPage(
       ? `<form class="inline" method="post" action="/posts/${post.id}/delete">${csrfField(who.csrf)}<button class="danger">삭제</button></form>`
       : '',
   ].join('');
-  const statusForm = can.setStatus
+  // 관리자는 상태 표시 자리에서 바로 바꾼다. 선택하면 저장되고, JS 가 꺼져 있으면 버튼이 대신 나온다
+  const statusControl = can.setStatus
     ? `<form class="status-form" method="post" action="/posts/${post.id}/status">${csrfField(who.csrf)}
-        <label for="status">처리 상태</label><select id="status" name="status">${POST_STATUSES.map(
+        <select class="st-${post.status}" name="status" aria-label="처리 상태">${POST_STATUSES.map(
           (s) => `<option value="${s}"${s === post.status ? ' selected' : ''}>${STATUS_LABEL[s]}</option>`,
-        ).join('')}</select><button class="quiet">바꾸기</button></form>`
-    : '';
+        ).join('')}</select><noscript><button class="quiet">바꾸기</button></noscript></form>`
+    : status(post.status);
   const list = comments
     .map((c) => `<div class="comment" id="c${c.id}"><p class="meta">${byline(c)}</p><p class="body">${esc(c.body)}</p></div>`)
     .join('');
@@ -237,9 +234,9 @@ export function detailPage(
     post.title,
     `<a class="back" href="/">목록으로</a>
      <article><h1>${esc(post.title)}</h1>
-       <p class="meta">${status(post.status)}${byline(post)}${post.updatedAt !== post.createdAt ? '<span>수정됨</span>' : ''}</p>
+       <div class="meta">${statusControl}${byline(post)}${post.updatedAt !== post.createdAt ? '<span>수정됨</span>' : ''}</div>
        <p class="body">${esc(post.body)}</p>
-       ${actions ? `<div class="actions">${actions}</div>` : ''}${statusForm}</article>
+       ${actions ? `<div class="actions">${actions}</div>` : ''}</article>${can.setStatus ? `<script>${STATUS_SCRIPT}</script>` : ''}
      <section class="comments"><h2>댓글 ${comments.length}</h2>${list}
        <form class="comment-form" method="post" action="/posts/${post.id}/comments">${csrfField(who.csrf)}
          <label for="comment">댓글</label><textarea id="comment" name="body" maxlength="${COMMENT_MAX}" required></textarea>
