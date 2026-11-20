@@ -5,7 +5,7 @@ category: setup
 summary: 내 맥에서 ssh aws-ubuntu-1로 Lightsail 서버에 접속해 git clone, .env 업로드, data 폴더 준비, docker compose 실행, 로그 확인까지 그대로 따라 하는 배포 절차. 업데이트, 되돌리기, 자주 쓰는 명령 포함.
 keywords: [배포, 런북, SSH, aws-ubuntu-1, git clone, scp, .env, docker compose, 업데이트, git pull, 로그, 되돌리기, 재시작]
 related_files: [Dockerfile, compose.yml, .env.example, docs/setup.md]
-last_updated: 2026-10-02
+last_updated: 2026-11-20
 ---
 
 # 서버 배포 런북
@@ -95,6 +95,43 @@ docker compose logs -f --tail 50   # "로그인 완료: 배근이#..." 가 보�
 ```bash
 npm run register
 ```
+
+## 8. 건의 게시판 (`https://team-splitter.hwiii.com`)
+
+`compose.yml`의 `web` 서비스다. 봇과 같은 이미지에서 `dist/web/main.js`를 실행하고, 서버의 `_proxy` Caddy가 HTTPS를 붙인다.
+Discord로 로그인하면 `.env`의 `ALLOWED_IDS`와 `ADMIN_ID`에 있는 계정만 들어올 수 있다.
+
+**처음 한 번만**
+
+1. **[Developer Portal]** 봇 애플리케이션 → OAuth2 → Redirects에 `https://team-splitter.hwiii.com/auth/callback`를 추가한다. 같은 화면의 Client Secret을 복사해 둔다.
+2. **[맥]** `.env`에 아래를 채워서 4번처럼 서버로 다시 올린다. `ALLOWED_IDS`에는 들어올 사람의 Discord ID를 쉼표로 적고, `ADMIN_ID`(상태 변경·삭제 권한, 새 글 DM 수신)는 자동으로 포함된다.
+   ```
+   DISCORD_CLIENT_SECRET=...
+   ALLOWED_IDS=111,222
+   ADMIN_ID=내 ID
+   SESSION_SECRET=   # openssl rand -hex 32 결과
+   ```
+3. **[서버]** `~/services/_proxy/Caddyfile`에 블록을 추가하고 Caddy를 다시 읽힌다.
+   ```
+   team-splitter.hwiii.com {
+   	header X-Robots-Tag "noindex, nofollow"
+   	reverse_proxy team-splitter-web-1:3000
+   }
+   ```
+   ```bash
+   cd ~/services/_proxy && docker compose exec -w /etc/caddy caddy caddy reload
+   ```
+4. **[서버]** 게시판 전용 데이터 폴더를 만들고 띄운다. 폴더를 먼저 만들지 않으면 Docker가 root 소유로 만들어 게시판이 DB를 못 만든다.
+   ```bash
+   cd ~/services/team-splitter && docker network ls | grep proxy && mkdir -p data/board && docker compose up -d --build
+   ```
+   `--build`는 봇 이미지도 다시 만들기 때문에 봇도 몇 초 재시작된다 (평소 업데이트와 같다).
+
+- 허용할 사람을 바꾸려면 `.env`의 `ALLOWED_IDS`를 고치고 `docker compose up -d web`을 실행한다. 목록에서 빠진 사람은 로그인이 남아 있어도 바로 막힌다.
+- 글과 댓글은 `data/board/board.db`에 저장된다. 게시판 컨테이너에는 이 폴더만 연결해서 봇 DB가 보이지 않는다.
+- `.env`에서 게시판에 넘어가는 값은 `compose.yml`의 `web.environment`에 적힌 것뿐이다.
+- 게시판만 내리기: `docker compose stop web` 후 Caddyfile의 `team-splitter.hwiii.com` 블록을 지우고 reload. 봇은 그대로 돈다.
+- 로컬에서 띄울 때는 `.env.local`에 같은 값과 `BOARD_BASE_URL=http://localhost:3000`을 넣고 `npm run dev:web`을 실행한다. 로컬 로그인을 하려면 Portal Redirects에 `http://localhost:3000/auth/callback`도 추가해야 한다.
 
 ---
 
