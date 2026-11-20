@@ -226,6 +226,9 @@ main > form { max-width: 720px; }
 @media (max-width: 600px) {
   .me .name { display: none; }
   .detail-title { font-size: 21px; }
+  /* 390px 에서도 상태 탭 5개가 한 줄에 들어가게 */
+  .tabs { gap: 0; justify-content: space-between; }
+  .tab { gap: 4px; padding: 8px 6px; font-size: 13px; }
   .status-form .pick { padding: 6px 8px; justify-content: center; }
   .row {
     grid-template-columns: auto minmax(0, 1fr) auto;
