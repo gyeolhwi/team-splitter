@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import {
@@ -16,7 +15,7 @@ import {
   type User,
 } from './auth.js';
 import { isPostStatus, STATUS_LABEL, type BoardStore } from './board-store.js';
-import { BODY_MAX, COMMENT_MAX, detailPage, formPage, listPage, messagePage, STATUS_SCRIPT, TITLE_MAX } from './html.js';
+import { BODY_MAX, COMMENT_MAX, detailPage, formPage, listPage, messagePage, TITLE_MAX } from './html.js';
 import type { Notify } from './notify.js';
 
 const DISCORD = 'https://discord.com';
@@ -35,11 +34,9 @@ export interface BoardConfig extends Roles {
   sessionSecret: string;
 }
 
-const STATUS_SCRIPT_HASH = createHash('sha256').update(STATUS_SCRIPT).digest('base64');
-
 const SECURITY_HEADERS = {
   'Content-Security-Policy':
-    `default-src 'none'; script-src 'sha256-${STATUS_SCRIPT_HASH}'; style-src 'unsafe-inline'; img-src 'self' https://cdn.discordapp.com; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`,
+    "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https://cdn.discordapp.com; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'same-origin',
 };
@@ -198,7 +195,10 @@ export function createBoardServer(
     const who = { user, csrf: csrfToken(cfg.sessionSecret, sid) };
 
     if (method === 'GET') {
-      if (path === '/') return send(res, 200, listPage(who, store.listPosts()));
+      if (path === '/') {
+        const filter = url.searchParams.get('status');
+        return send(res, 200, listPage(who, store.listPosts(), isPostStatus(filter) ? filter : undefined));
+      }
       if (path === '/new') return send(res, 200, formPage(who));
       const detail = path.match(/^\/posts\/(\d+)$/);
       if (detail) {

@@ -1,10 +1,9 @@
-import { createHash } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfToken, parseIds, signSession, verifySession, type User } from '../src/web/auth.js';
 import { BoardStore } from '../src/web/board-store.js';
-import { esc, STATUS_SCRIPT } from '../src/web/html.js';
+import { esc } from '../src/web/html.js';
 import { discordDm } from '../src/web/notify.js';
 import { createBoardServer, type BoardConfig } from '../src/web/server.js';
 
@@ -185,16 +184,24 @@ describe('board server', () => {
     expect((await post('/posts', alice, { title: 't', body: 'b'.repeat(5001) })).status).toBe(400);
   });
 
-  it('관리자 상태 선택은 즉시 저장 스크립트를 쓰고, CSP 는 그 스크립트 해시만 허용한다', async () => {
+  it('관리자 상세에는 누르면 바로 저장되는 상태 버튼 4개가 있고 스크립트는 없다', async () => {
     const id = store.createPost(alice, '제목', '내용');
     const res = await get(`/posts/${id}`, admin);
     const html = await res.text();
-    const script = html.match(/<script>(.*?)<\/script>/)?.[1];
-    expect(script).toBe(STATUS_SCRIPT);
-    const hash = createHash('sha256').update(script!).digest('base64');
-    expect(res.headers.get('content-security-policy')).toContain(`script-src 'sha256-${hash}'`);
-    expect(html).toContain('<noscript><button');
-    expect(await (await get(`/posts/${id}`, alice)).text()).not.toContain('<script>');
+    expect(html.match(/name="status" value="/g)).toHaveLength(4);
+    expect(html).toContain('value="open" aria-pressed="true"');
+    expect(html).not.toContain('<script');
+    expect(res.headers.get('content-security-policy')).not.toContain('script-src');
+  });
+
+  it('상태 탭으로 목록을 거르고 상태별 개수를 보여 준다', async () => {
+    store.setStatus(store.createPost(alice, '끝난 건의', '내용'), 'done');
+    store.createPost(bob, '새 건의', '내용');
+    const html = await (await get('/?status=done', alice)).text();
+    expect(html).toContain('끝난 건의');
+    expect(html).not.toContain('새 건의');
+    expect(html).toMatch(/href="\/\?status=done" aria-current="page">.*?<span class="n">1<\/span>/);
+    expect(await (await get('/?status=bogus', alice)).text()).toContain('새 건의');
   });
 
   it('로그인 전에도 헤더 로고를 내려 준다', async () => {
