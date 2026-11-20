@@ -132,6 +132,13 @@ describe('board server', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it('Discord 가 오류로 돌려보내면 토큰 교환 없이 안내한다', async () => {
+    const res = await fetch(`${base}/auth/callback?error=access_denied&state=a`, { redirect: 'manual', headers: { cookie: 'oauth_state=a' } });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('로그인이 취소됐습니다');
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   it('목록에서 빠진 계정은 쿠키가 남아 있어도 403', async () => {
     expect((await get('/', stranger)).status).toBe(403);
   });

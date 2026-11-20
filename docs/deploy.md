@@ -121,10 +121,16 @@ Discord로 로그인하면 `.env`의 `ALLOWED_IDS`와 `ADMIN_ID`에 있는 계�
    ```bash
    cd ~/services/_proxy && docker compose exec -w /etc/caddy caddy caddy reload
    ```
-4. **[서버]** `cd ~/services/team-splitter && docker compose up -d --build`
+4. **[서버]** 게시판 전용 데이터 폴더를 만들고 띄운다. 폴더를 먼저 만들지 않으면 Docker가 root 소유로 만들어 게시판이 DB를 못 만든다.
+   ```bash
+   cd ~/services/team-splitter && docker network ls | grep proxy && mkdir -p data/board && docker compose up -d --build
+   ```
+   `--build`는 봇 이미지도 다시 만들기 때문에 봇도 몇 초 재시작된다 (평소 업데이트와 같다).
 
 - 허용할 사람을 바꾸려면 `.env`의 `ALLOWED_IDS`를 고치고 `docker compose up -d web`을 실행한다. 목록에서 빠진 사람은 로그인이 남아 있어도 바로 막힌다.
-- 글과 댓글은 `data/board.db`에 저장된다. 봇 DB와는 다른 파일이다.
+- 글과 댓글은 `data/board/board.db`에 저장된다. 게시판 컨테이너에는 이 폴더만 연결해서 봇 DB가 보이지 않는다.
+- `.env`에서 게시판에 넘어가는 값은 `compose.yml`의 `web.environment`에 적힌 것뿐이다.
+- 게시판만 내리기: `docker compose stop web` 후 Caddyfile의 `team-splitter.hwiii.com` 블록을 지우고 reload. 봇은 그대로 돈다.
 - 로컬에서 띄울 때는 `.env.local`에 같은 값과 `BOARD_BASE_URL=http://localhost:3000`을 넣고 `npm run dev:web`을 실행한다. 로컬 로그인을 하려면 Portal Redirects에 `http://localhost:3000/auth/callback`도 추가해야 한다.
 
 ---

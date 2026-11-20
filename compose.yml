@@ -17,12 +17,19 @@ services:
     build: .
     restart: unless-stopped
     command: ["node", "dist/web/main.js"]
-    env_file: .env
+    # 인터넷에 노출되므로 .env 전체가 아니라 필요한 값만 넘긴다 (봇 토큰은 관리자 DM용)
     environment:
       DB_PATH: /app/data/board.db
       BOARD_BASE_URL: https://team-splitter.hwiii.com
+      DISCORD_APPLICATION_ID: ${DISCORD_APPLICATION_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      ALLOWED_IDS: ${ALLOWED_IDS}
+      ADMIN_ID: ${ADMIN_ID}
+      SESSION_SECRET: ${SESSION_SECRET}
+    # 봇 DB가 보이지 않게 게시판 전용 폴더만 연결한다. 실행 전에 mkdir -p data/board
     volumes:
-      - ./data:/app/data
+      - ./data/board:/app/data
     mem_limit: 128m
     logging:
       options:

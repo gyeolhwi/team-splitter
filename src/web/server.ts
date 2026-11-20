@@ -111,12 +111,14 @@ export function createBoardServer(
       scope: 'identify',
       redirect_uri: redirectUri,
       state,
-      prompt: 'none',
     }).toString();
     redirect(res, url.toString(), [cookie(STATE_COOKIE, state, 600)]);
   }
 
   async function callback(url: URL, cookies: Record<string, string>, res: ServerResponse) {
+    if (url.searchParams.has('error')) {
+      throw new HttpError(400, 'Discord 로그인이 취소됐습니다. 다시 시도해 주세요.');
+    }
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     if (!code || !state || state !== cookies[STATE_COOKIE]) {
