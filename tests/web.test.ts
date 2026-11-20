@@ -1,9 +1,10 @@
+import { createHash } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfToken, parseIds, signSession, verifySession, type User } from '../src/web/auth.js';
 import { BoardStore } from '../src/web/board-store.js';
-import { esc } from '../src/web/html.js';
+import { esc, STATUS_SCRIPT } from '../src/web/html.js';
 import { discordDm } from '../src/web/notify.js';
 import { createBoardServer, type BoardConfig } from '../src/web/server.js';
 
@@ -182,6 +183,18 @@ describe('board server', () => {
   it('빈 제목과 너무 긴 본문을 거부한다', async () => {
     expect((await post('/posts', alice, { title: '  ', body: 'b' })).status).toBe(400);
     expect((await post('/posts', alice, { title: 't', body: 'b'.repeat(5001) })).status).toBe(400);
+  });
+
+  it('관리자 상태 선택은 즉시 저장 스크립트를 쓰고, CSP 는 그 스크립트 해시만 허용한다', async () => {
+    const id = store.createPost(alice, '제목', '내용');
+    const res = await get(`/posts/${id}`, admin);
+    const html = await res.text();
+    const script = html.match(/<script>(.*?)<\/script>/)?.[1];
+    expect(script).toBe(STATUS_SCRIPT);
+    const hash = createHash('sha256').update(script!).digest('base64');
+    expect(res.headers.get('content-security-policy')).toContain(`script-src 'sha256-${hash}'`);
+    expect(html).toContain('<noscript><button');
+    expect(await (await get(`/posts/${id}`, alice)).text()).not.toContain('<script>');
   });
 
   it('로그인 전에도 헤더 로고를 내려 준다', async () => {
