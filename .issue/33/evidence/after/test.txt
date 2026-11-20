@@ -1,0 +1,18 @@
+# after — 2026-11-20 13:04 · c22fbc1
+> tsc --noEmit
+
+ ✓ tests/web.test.ts > auth > 서명한 세션만 통과하고 위조·만료는 거부한다 2ms
+ ✓ tests/web.test.ts > auth > ID 목록을 쉼표로 나눈다 0ms
+ ✓ tests/web.test.ts > auth > HTML 특수문자를 이스케이프한다 0ms
+ ✓ tests/web.test.ts > discordDm > DM 채널을 한 번만 열고 메시지를 보낸다 56ms
+ ✓ tests/web.test.ts > board server > 로그인 안 한 접속은 Discord 로그인으로 보낸다 44ms
+ ✓ tests/web.test.ts > board server > 허용 목록 밖 계정은 콜백에서 403, 허용 계정은 세션을 받는다 10ms
+ ✓ tests/web.test.ts > board server > state 가 맞지 않으면 콜백을 거부한다 4ms
+ ✓ tests/web.test.ts > board server > 목록에서 빠진 계정은 쿠키가 남아 있어도 403 3ms
+ ✓ tests/web.test.ts > board server > 글·댓글을 쓰고 이스케이프해서 보여 주며 관리자에게 알린다 47ms
+ ✓ tests/web.test.ts > board server > CSRF 토큰이 없으면 POST 를 막는다 5ms
+ ✓ tests/web.test.ts > board server > 상태 변경은 관리자만, 수정은 본인만, 삭제는 본인과 관리자만 14ms
+ ✓ tests/web.test.ts > board server > 빈 제목과 너무 긴 본문을 거부한다 7ms
+ ✓ tests/web.test.ts > board server > 관리자 화면에만 상태 변경 폼이 보인다 4ms
+      Tests  13 passed (13)
+      Tests  89 passed (89)
