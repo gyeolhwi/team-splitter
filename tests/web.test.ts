@@ -184,9 +184,15 @@ describe('board server', () => {
     expect((await post('/posts', alice, { title: 't', body: 'b'.repeat(5001) })).status).toBe(400);
   });
 
+  it('로그인 전에도 헤더 로고를 내려 준다', async () => {
+    const res = await get('/logo.png');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/png');
+  });
+
   it('관리자 화면에만 상태 변경 폼이 보인다', async () => {
     const id = store.createPost(alice, '제목', '내용');
-    expect(await (await get(`/posts/${id}`, admin)).text()).toContain('status-form');
-    expect(await (await get(`/posts/${id}`, alice)).text()).not.toContain('status-form');
+    expect(await (await get(`/posts/${id}`, admin)).text()).toContain('class="status-form"');
+    expect(await (await get(`/posts/${id}`, alice)).text()).not.toContain('class="status-form"');
   });
 });

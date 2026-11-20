@@ -14,6 +14,7 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
+COPY assets/persona/thumb-256.png ./assets/persona/
 RUN mkdir -p data && chown node:node data
 USER node
 CMD ["node", "dist/index.js"]
