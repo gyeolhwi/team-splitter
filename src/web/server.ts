@@ -234,7 +234,7 @@ export function createBoardServer(
       const title = text(form, 'title', TITLE_MAX, '제목');
       const body = text(form, 'body', BODY_MAX, '내용');
       const id = store.createPost(user, title, body);
-      if (!isAdmin(cfg, user.id)) notify(`📮 새 건의 — ${title}\n작성: ${user.name}\n${cfg.baseUrl}/posts/${id}`);
+      if (!isAdmin(cfg, user.id)) notify(`📮 새 피드백 — ${title}\n작성: ${user.name}\n${cfg.baseUrl}/posts/${id}`);
       return redirect(res, `/posts/${id}`);
     }
 
